@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local database
+*.db
+
+# Streamlit secrets (never commit credentials)
+.streamlit/secrets.toml
