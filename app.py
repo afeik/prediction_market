@@ -3,11 +3,14 @@
 Run locally:
     streamlit run app.py
 
-Traders register their own accounts (the first account becomes admin),
-start with 1000 virtual coins, and trade YES/NO shares against an LMSR
-market maker. The admin creates and resolves markets.
+Traders register their own accounts, start with 1000 virtual coins, and trade
+YES/NO contracts against an LMSR market maker. Admins create and settle
+markets, manage other admins, and can reset the game.
 """
 from __future__ import annotations
+
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
@@ -16,23 +19,146 @@ import market as mkt
 import pricing
 from db import init_db
 
-st.set_page_config(page_title="Repubblica dei Pronostici", page_icon="🎲", layout="wide")
-init_db()
+# Scheduling/display timezone. We persist UTC in the database and present
+# everything to traders in Zurich local time (CET in winter, CEST in summer).
+ZURICH = ZoneInfo("Europe/Zurich")
+UTC = ZoneInfo("UTC")
+
+
+def to_zurich(dt_utc: datetime | None) -> datetime | None:
+    """Naive-UTC datetime (as stored) -> timezone-aware Zurich datetime."""
+    if dt_utc is None:
+        return None
+    return dt_utc.replace(tzinfo=UTC).astimezone(ZURICH)
+
+
+def zurich_to_utc(dt_local: datetime) -> datetime:
+    """Naive Zurich wall-clock datetime -> naive UTC for storage."""
+    return dt_local.replace(tzinfo=ZURICH).astimezone(UTC).replace(tzinfo=None)
+
+
+def fmt_zurich(dt_utc: datetime | None) -> str:
+    """Format naive-UTC as Zurich local time, e.g. '18 Jun 2026, 20:00 CEST'."""
+    z = to_zurich(dt_utc)
+    return z.strftime("%d %b %Y, %H:%M %Z") if z else ""
+
+
+st.set_page_config(
+    page_title="Repubblica dei Pronostici",
+    page_icon="📈",
+    layout="wide",
+)
+
+
+# --------------------------------------------------------------------------- #
+# Bootstrap & caching (keeps reruns snappy against remote Postgres)
+# --------------------------------------------------------------------------- #
+@st.cache_resource
+def _bootstrap() -> bool:
+    init_db()
+    return True
+
+
+_bootstrap()
+
+
+@st.cache_data(ttl=5, show_spinner=False)
+def cached_markets(status: str | None = "open"):
+    return mkt.list_markets(status)
+
+
+@st.cache_data(ttl=5, show_spinner=False)
+def cached_leaderboard():
+    return mkt.leaderboard()
+
+
+@st.cache_data(ttl=5, show_spinner=False)
+def cached_trades(market_id: int, limit: int = 8):
+    return mkt.recent_trades(market_id, limit)
+
+
+def refresh() -> None:
+    """Invalidate cached reads after a write, then rerun."""
+    st.cache_data.clear()
+    st.rerun()
+
+
+# --------------------------------------------------------------------------- #
+# Styling — sleek dark "trading terminal" look
+# --------------------------------------------------------------------------- #
+def inject_css() -> None:
+    st.markdown(
+        """
+        <style>
+        .block-container {padding-top: 2.0rem; max-width: 1160px;}
+        [data-testid="stMetricValue"] {font-variant-numeric: tabular-nums; font-weight: 600;
+            letter-spacing:.01em;}
+        [data-testid="stMetricLabel"] {color: #7d8590; text-transform: uppercase;
+            letter-spacing: .06em; font-size: .7rem; font-weight: 600;}
+        .pill {display:inline-block; padding:3px 11px; border-radius:6px;
+            font-weight:600; font-size:.82rem; font-variant-numeric: tabular-nums; letter-spacing:.02em;}
+        .pill-yes {background:rgba(63,185,80,.12); color:#3fb950; border:1px solid rgba(63,185,80,.35);}
+        .pill-no  {background:rgba(248,81,73,.12); color:#f85149; border:1px solid rgba(248,81,73,.35);}
+        .pill-closed {background:rgba(125,134,144,.12); color:#7d8590;
+            border:1px solid rgba(125,134,144,.35);}
+        .tkr {font-size:1.02rem; font-weight:600; letter-spacing:.01em; color:#e6edf3;}
+        .muted {color:#7d8590;}
+        .pos {color:#3fb950; font-variant-numeric: tabular-nums; font-weight:600;}
+        .neg {color:#f85149; font-variant-numeric: tabular-nums; font-weight:600;}
+        .mono {font-variant-numeric: tabular-nums;}
+        .market-card {border:1px solid #30363d; border-radius:.6rem;
+            padding:1rem 1.15rem; margin-bottom:.75rem; background:#161b22;}
+        .market-closed {opacity:.55;}
+        hr {margin: .8rem 0; border-color: #30363d;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def pnl_html(value: float, prefix: str = "") -> str:
+    cls = "pos" if value >= 0 else "neg"
+    sign = "+" if value >= 0 else "−"
+    return f'<span class="{cls}">{prefix}{sign}{abs(value):,.0f}</span>'
+
+
+def render_tape(market_id: int) -> None:
+    with st.expander("Trade tape"):
+        trades = cached_trades(market_id, 8)
+        if trades:
+            df = pd.DataFrame(trades)
+            df["Mark"] = (df["prob_after"] * 100).round(0).astype(int).astype(str) + "%"
+            df["Side"] = df["side"].str.upper()
+            df["Payout"] = df["shares"].round(0)
+            df["Stake"] = df["cost"].round(0)
+            st.dataframe(
+                df.rename(columns={"user": "Trader", "action": "Action"})[
+                    ["Trader", "Action", "Side", "Payout", "Stake", "Mark"]
+                ],
+                hide_index=True,
+                width="stretch",
+            )
+        else:
+            st.caption("No trades yet.")
+
 
 if "user" not in st.session_state:
     st.session_state.user = None
+
 
 
 # --------------------------------------------------------------------------- #
 # Auth screen
 # --------------------------------------------------------------------------- #
 def auth_screen() -> None:
-    st.title("🎲 La Repubblica dei Pronostici")
-    st.caption("Trade predictions with friends using virtual coins.")
+    inject_css()
+    st.title("La Repubblica dei Pronostici")
+    st.caption("A play-money prediction market. Trade YES/NO contracts on anything — no real cash.")
 
     first_user = mkt.user_count() == 0
     if first_user:
-        st.info("No accounts yet — the first account you create becomes the **admin**.")
+        st.info("You're the first to register, so your account will be the administrator "
+                "(create and settle markets, manage the desk).")
 
     tab_login, tab_register = st.tabs(["Log in", "Register"])
 
@@ -40,11 +166,11 @@ def auth_screen() -> None:
         with st.form("login_form"):
             username = st.text_input("Username")
             password = st.text_input("Password", type="password")
-            if st.form_submit_button("Log in", width="stretch"):
+            if st.form_submit_button("Log in", type="primary", width="stretch"):
                 user = mkt.authenticate(username, password)
                 if user:
                     st.session_state.user = user
-                    st.rerun()
+                    refresh()
                 else:
                     st.error("Wrong username or password.")
 
@@ -52,11 +178,11 @@ def auth_screen() -> None:
         with st.form("register_form"):
             username = st.text_input("Choose a username")
             password = st.text_input("Choose a password", type="password")
-            if st.form_submit_button("Create account", width="stretch"):
+            if st.form_submit_button("Create account", type="primary", width="stretch"):
                 try:
                     user = mkt.register_user(username, password, is_admin=first_user)
                     st.session_state.user = user
-                    st.rerun()
+                    refresh()
                 except ValueError as exc:
                     st.error(str(exc))
 
@@ -64,181 +190,357 @@ def auth_screen() -> None:
 # --------------------------------------------------------------------------- #
 # Sidebar
 # --------------------------------------------------------------------------- #
-def sidebar(user: dict) -> None:
+def sidebar(user: dict, equity: float, cash: float) -> None:
     with st.sidebar:
-        st.markdown(f"### 👤 {user['username']}")
-        balance = mkt.get_user(user["id"])["balance"]
-        st.metric("Balance", f"{balance:,.1f} coins")
-        if user["is_admin"]:
-            st.caption("🛠️ admin")
+        st.markdown(f"### {user['username']}")
+        st.caption("Administrator" if user["is_admin"] else "Trader")
+        st.metric("Equity", f"{equity:,.0f}")
+        st.metric("Buying power", f"{cash:,.0f}")
+        st.divider()
+        if st.button("Refresh", width="stretch"):
+            refresh()
         if st.button("Log out", width="stretch"):
             st.session_state.user = None
-            st.rerun()
+            refresh()
 
 
 # --------------------------------------------------------------------------- #
 # Markets tab
 # --------------------------------------------------------------------------- #
-def markets_tab(user: dict) -> None:
+def markets_tab(user: dict, cash: float, positions: dict) -> None:
     uid = user["id"]
-    balance = mkt.get_user(uid)["balance"]
-    positions = {p["market_id"]: p for p in mkt.get_positions(uid)}
-    open_markets = mkt.list_markets(status="open")
+    open_markets = cached_markets("open")
 
     if not open_markets:
-        st.info("No open markets yet. Ask the admin to create one.")
+        st.info("No markets are open. An administrator can create one in the Admin tab.")
         return
 
-    for m in open_markets:
+    live = [m for m in open_markets if m["trading_open"]]
+    closed = [m for m in open_markets if not m["trading_open"]]
+
+    for m in live:
         p = m["prob_yes"]
-        with st.expander(f"{m['question']}  ·  YES {p * 100:.1f}%", expanded=True):
-            if m["description"]:
-                st.caption(m["description"])
-            st.progress(p, text=f"YES {p * 100:.1f}%   |   NO {(1 - p) * 100:.1f}%")
-
-            trade_col, pos_col = st.columns([3, 2])
-
-            with trade_col:
-                st.markdown("**Place a trade**")
-                side = st.radio(
-                    "Outcome", ["YES", "NO"], horizontal=True, key=f"side_{m['id']}"
-                ).lower()
-                spend = st.number_input(
-                    "Spend (coins)",
-                    min_value=1.0,
-                    max_value=max(1.0, float(balance)),
-                    value=min(25.0, max(1.0, float(balance))),
-                    step=5.0,
-                    key=f"spend_{m['id']}",
-                )
-                shares = pricing.shares_for_budget(m["q_yes"], m["q_no"], m["b"], side, spend)
-                if side == "yes":
-                    p_after = pricing.prob_yes(m["q_yes"] + shares, m["q_no"], m["b"])
-                else:
-                    p_after = pricing.prob_yes(m["q_yes"], m["q_no"] + shares, m["b"])
-
-                st.write(
-                    f"≈ **{shares:.1f} {side.upper()}** shares  ·  "
-                    f"price **{p * 100:.1f}% → {p_after * 100:.1f}%**"
-                )
-                st.caption(f"Max payout if {side.upper()} wins: {shares:.1f} coins")
-
-                if st.button(f"Buy {side.upper()} for {spend:.0f}", key=f"buy_{m['id']}"):
-                    try:
-                        mkt.execute_trade(uid, m["id"], side, "buy", shares)
-                        st.success(f"Bought {shares:.1f} {side.upper()} shares.")
-                        st.rerun()
-                    except ValueError as exc:
-                        st.error(str(exc))
-
-            with pos_col:
-                st.markdown("**Your position**")
-                pos = positions.get(m["id"])
-                if pos and (pos["yes_shares"] > 0 or pos["no_shares"] > 0):
-                    st.write(
-                        f"YES: **{pos['yes_shares']:.1f}**  ·  NO: **{pos['no_shares']:.1f}**"
+        with st.container(border=True):
+            head_l, head_r = st.columns([4, 1])
+            with head_l:
+                st.markdown(f"<span class='tkr'>{m['question']}</span>", unsafe_allow_html=True)
+                if m["description"]:
+                    st.markdown(f"<span class='muted'>{m['description']}</span>", unsafe_allow_html=True)
+            with head_r:
+                deadline_line = ""
+                if m.get("close_at") is not None:
+                    deadline_line = (
+                        f"<div class='muted' style='font-size:.72rem;margin-top:5px'>"
+                        f"Expires {fmt_zurich(m['close_at'])}</div>"
                     )
-                    st.caption(f"Mark-to-market value: {pos['value']:.1f} coins")
-                    sc1, sc2 = st.columns(2)
-                    with sc1:
-                        if pos["yes_shares"] > 0 and st.button(
-                            "Sell all YES", key=f"sell_yes_{m['id']}"
-                        ):
-                            mkt.execute_trade(uid, m["id"], "yes", "sell", pos["yes_shares"])
-                            st.rerun()
-                    with sc2:
-                        if pos["no_shares"] > 0 and st.button(
-                            "Sell all NO", key=f"sell_no_{m['id']}"
-                        ):
-                            mkt.execute_trade(uid, m["id"], "no", "sell", pos["no_shares"])
-                            st.rerun()
-                else:
-                    st.caption("No shares yet.")
-
-            trades = mkt.recent_trades(market_id=m["id"], limit=8)
-            if trades:
-                st.markdown("**Recent activity**")
-                df = pd.DataFrame(trades)
-                df["price"] = (df["prob_after"] * 100).round(1)
-                st.dataframe(
-                    df[["user", "action", "side", "shares", "cost", "price"]].round(1),
-                    hide_index=True,
-                    width="stretch",
+                st.markdown(
+                    f"<div style='text-align:right'>"
+                    f"<span class='pill pill-yes'>YES {p*100:.0f}%</span>"
+                    f"{deadline_line}</div>",
+                    unsafe_allow_html=True,
                 )
+            st.progress(p, text=f"YES {p*100:.1f}%  ·  NO {(1-p)*100:.1f}%")
+
+            trade_col, pos_col = st.columns([3, 2], gap="large")
+
+            # ----- Order ticket (buy) -------------------------------------- #
+            with trade_col:
+                with st.container(border=True):
+                    st.markdown("##### Trade")
+                    amount = st.number_input(
+                        "Stake (coins)",
+                        min_value=1.0,
+                        max_value=max(1.0, float(cash)),
+                        value=min(25.0, max(1.0, float(cash))),
+                        step=5.0,
+                        key=f"amt_{m['id']}",
+                    )
+                    yes_payout = pricing.shares_for_budget(m["q_yes"], m["q_no"], m["b"], "yes", amount)
+                    no_payout = pricing.shares_for_budget(m["q_yes"], m["q_no"], m["b"], "no", amount)
+                    p_yes_after = pricing.prob_yes(m["q_yes"] + yes_payout, m["q_no"], m["b"])
+                    p_no_after = pricing.prob_yes(m["q_yes"], m["q_no"] + no_payout, m["b"])
+
+                    st.markdown(
+                        f"<span class='pill pill-yes'>YES</span> &nbsp;payout "
+                        f"<b class='mono'>{yes_payout:,.0f}</b> "
+                        f"<span class='muted'>· avg {amount/yes_payout*100:.0f}¢ · mark "
+                        f"{p*100:.0f}→{p_yes_after*100:.0f}%</span>",
+                        unsafe_allow_html=True,
+                    )
+                    st.markdown(
+                        f"<span class='pill pill-no'>NO</span> &nbsp;payout "
+                        f"<b class='mono'>{no_payout:,.0f}</b> "
+                        f"<span class='muted'>· avg {amount/no_payout*100:.0f}¢ · mark "
+                        f"{p*100:.0f}→{(1-p_no_after)*100:.0f}%</span>",
+                        unsafe_allow_html=True,
+                    )
+
+                    by, bn = st.columns(2)
+                    if by.button("Buy YES", key=f"yes_{m['id']}", type="primary", width="stretch"):
+                        try:
+                            mkt.execute_trade(uid, m["id"], "yes", "buy", yes_payout)
+                            refresh()
+                        except ValueError as exc:
+                            st.error(str(exc))
+                    if bn.button("Buy NO", key=f"no_{m['id']}", width="stretch"):
+                        try:
+                            mkt.execute_trade(uid, m["id"], "no", "buy", no_payout)
+                            refresh()
+                        except ValueError as exc:
+                            st.error(str(exc))
+
+            # ----- Current position (hold / sell) -------------------------- #
+            with pos_col:
+                with st.container(border=True):
+                    st.markdown("##### Your position")
+                    pos = positions.get(m["id"])
+                    held_yes = pos["yes_shares"] if pos else 0.0
+                    held_no = pos["no_shares"] if pos else 0.0
+                    if held_yes > 0 or held_no > 0:
+                        for leg_side, qty in (("YES", held_yes), ("NO", held_no)):
+                            if qty <= 0:
+                                continue
+                            sell_side = leg_side.lower()
+                            proceeds = pricing.proceeds_from_sell(
+                                m["q_yes"], m["q_no"], m["b"], sell_side, qty
+                            )
+                            st.markdown(
+                                f"<span class='pill pill-{sell_side}'>{leg_side}</span> "
+                                f"payout <b class='mono'>{qty:,.0f}</b>",
+                                unsafe_allow_html=True,
+                            )
+                            if st.button(
+                                f"Close {leg_side} for ≈ {proceeds:,.0f}",
+                                key=f"close_{sell_side}_{m['id']}",
+                                width="stretch",
+                            ):
+                                mkt.execute_trade(uid, m["id"], sell_side, "sell", qty)
+                                refresh()
+                        st.markdown(
+                            f"<div style='margin-top:.4rem'>"
+                            f"<span class='muted'>Mark value</span> <b class='mono'>{pos['value']:,.0f}</b>"
+                            f" · <span class='muted'>P&amp;L</span> {pnl_html(pos['pnl'])}</div>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.markdown(
+                            "<span class='muted'>No position yet. Buy YES or NO to open one.</span>",
+                            unsafe_allow_html=True,
+                        )
+
+            render_tape(m["id"])
+
+    if closed:
+        st.markdown("##### Closed — awaiting settlement")
+        for m in closed:
+            p = m["prob_yes"]
+            pos = positions.get(m["id"])
+            posline = ""
+            held = []
+            if pos:
+                if pos["yes_shares"] > 0:
+                    held.append(("YES", pos["yes_shares"]))
+                if pos["no_shares"] > 0:
+                    held.append(("NO", pos["no_shares"]))
+            if held:
+                legs_html = " ".join(
+                    f"<span class='pill pill-{s.lower()}'>{s}</span> "
+                    f"payout <b class='mono'>{q:,.0f}</b>"
+                    for s, q in held
+                )
+                posline = (
+                    f"<div style='margin-top:.5rem'><span class='muted'>Your position:</span> "
+                    f"{legs_html} · <span class='muted'>P&amp;L</span> {pnl_html(pos['pnl'])}</div>"
+                )
+            desc = f"<div class='muted'>{m['description']}</div>" if m["description"] else ""
+            closed_line = "Awaiting settlement by an administrator."
+            if m.get("close_at") is not None:
+                closed_line = f"Closed {fmt_zurich(m['close_at'])} · awaiting settlement."
+            st.markdown(
+                f"""<div class='market-card market-closed'>
+  <div style='display:flex;justify-content:space-between;align-items:flex-start'>
+    <span class='tkr'>{m['question']}</span>
+    <span class='pill pill-closed'>Trading closed</span>
+  </div>
+  {desc}
+  <div style='color:#7d8590;font-size:.85rem;margin:.45rem 0 .2rem'>YES {p*100:.1f}% · NO {(1-p)*100:.1f}%</div>
+  <div style='background:#30363d;border-radius:6px;height:8px;overflow:hidden'>
+    <div style='background:#3fb950;height:100%;width:{p*100:.1f}%'></div>
+  </div>
+  {posline}
+  <div class='muted' style='margin-top:.55rem;font-size:.85rem'>{closed_line}</div>
+</div>""",
+                unsafe_allow_html=True,
+            )
+            render_tape(m["id"])
+
 
 
 # --------------------------------------------------------------------------- #
 # Portfolio tab
 # --------------------------------------------------------------------------- #
-def portfolio_tab(user: dict) -> None:
-    info = mkt.get_user(user["id"])
-    positions = mkt.get_positions(user["id"])
-    pos_value = sum(p["value"] for p in positions)
+def portfolio_tab(cash: float, positions_list: list) -> None:
+    active = [
+        p for p in positions_list
+        if p["status"] == "open" and (p["yes_shares"] > 0 or p["no_shares"] > 0)
+    ]
+    pos_value = sum(p["value"] for p in active)
+    invested = sum(p["invested"] for p in active)
+    open_pnl = sum(p["pnl"] for p in active)
+    equity = cash + pos_value
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Cash", f"{info['balance']:,.1f}")
-    c2.metric("Open positions value", f"{pos_value:,.1f}")
-    c3.metric("Net worth", f"{info['balance'] + pos_value:,.1f}")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Equity", f"{equity:,.0f}")
+    c2.metric("Buying power", f"{cash:,.0f}")
+    c3.metric("Market value", f"{pos_value:,.0f}")
+    c4.metric("Open P&L", f"{open_pnl:+,.0f}", delta=f"{open_pnl:+,.0f}")
 
-    if positions:
-        df = pd.DataFrame(positions)
-        df["YES %"] = (df["prob_yes"] * 100).round(1)
-        show = df[["question", "yes_shares", "no_shares", "YES %", "value", "status"]]
-        st.dataframe(show.round(1), hide_index=True, width="stretch")
-    else:
-        st.info("You don't hold any shares yet.")
+    st.markdown("#### Open positions")
+    if not active:
+        st.info("No open positions. Open the Markets tab to put on a trade.")
+        return
+
+    for p in active:
+        ret = (p["pnl"] / p["invested"] * 100) if p["invested"] else 0.0
+        legs = [("YES", p["yes_shares"]), ("NO", p["no_shares"])]
+        held = [(s, q) for s, q in legs if q > 0]
+        sides_html = " ".join(
+            f"<span class='pill pill-{s.lower()}'>{s}</span> "
+            f"<b class='mono'>{q:,.0f}</b>"
+            for s, q in held
+        )
+        st.markdown(
+            f"<div style='display:flex;justify-content:space-between;align-items:center;"
+            f"padding:.35rem 0;border-bottom:1px solid #30363d'>"
+            f"<span>{sides_html} &nbsp;<b>{p['question']}</b></span>"
+            f"<span class='muted'>cost <b class='mono'>{p['invested']:,.0f}</b> · "
+            f"value <b class='mono'>{p['value']:,.0f}</b> · "
+            f"P&amp;L {pnl_html(p['pnl'])} ({ret:+.0f}%)</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
 
 
 # --------------------------------------------------------------------------- #
 # Leaderboard tab
 # --------------------------------------------------------------------------- #
-def leaderboard_tab() -> None:
-    rows = mkt.leaderboard()
+def leaderboard_tab(current_user: dict) -> None:
+    rows = cached_leaderboard()
+    if not rows:
+        st.info("No traders yet.")
+        return
+    st.markdown("#### Standings — ranked by equity")
     df = pd.DataFrame(rows)
-    df.index = range(1, len(df) + 1)
-    df.index.name = "Rank"
+    df.insert(0, "#", range(1, len(df) + 1))
+    df["Trader"] = df.apply(
+        lambda r: r["username"] + ("  ·  admin" if r["is_admin"] else ""), axis=1
+    )
+    df["Equity"] = df["net_worth"].round(0)
+    df["P&L"] = (df["net_worth"] - mkt.STARTING_BALANCE).round(0)
+    show = df[["#", "Trader", "Equity", "P&L"]]
     st.dataframe(
-        df.rename(columns={"username": "Trader", "cash": "Cash", "net_worth": "Net worth"}).round(1),
+        show,
+        hide_index=True,
         width="stretch",
+        column_config={
+            "P&L": st.column_config.NumberColumn(format="%+d"),
+        },
+    )
+    st.caption(
+        f"Equity = buying power + mark-to-market value of open positions. "
+        f"Everyone starts at {mkt.STARTING_BALANCE:,.0f}."
     )
 
 
 # --------------------------------------------------------------------------- #
-# Admin tab
+# Help / FAQ tab
 # --------------------------------------------------------------------------- #
-def admin_tab() -> None:
-    st.markdown("### Create a market")
-    with st.form("create_market"):
-        question = st.text_input("Question", placeholder="Will Italy beat Spain?")
-        description = st.text_area(
-            "Resolution rules",
-            placeholder="Resolved by the result after 90 minutes + stoppage time.",
-        )
-        b = st.slider("Liquidity (b) — higher = harder to move price", 20, 400, 100, step=10)
-        if st.form_submit_button("Create market"):
-            try:
-                mkt.create_market(question, description, float(b))
-                st.success("Market created.")
-                st.rerun()
-            except ValueError as exc:
-                st.error(str(exc))
+def faq_tab() -> None:
+    st.markdown("#### How the desk works")
+    st.write(
+        "Each market is a binary contract that settles at 100 if the event "
+        "happens (YES) or 0 if it does not (NO). The quoted price sits between "
+        "0 and 100% and reads as the market-implied probability. Everyone "
+        "trades play money, so no real cash is at stake."
+    )
 
-    st.markdown("### Resolve a market")
-    open_markets = mkt.list_markets(status="open")
-    if not open_markets:
-        st.info("No open markets to resolve.")
-        return
-    labels = {f"{m['question']} (YES {m['prob_yes'] * 100:.0f}%)": m["id"] for m in open_markets}
-    choice = st.selectbox("Market", list(labels.keys()))
-    c1, c2 = st.columns(2)
-    if c1.button("Resolve YES", width="stretch"):
-        mkt.resolve_market(labels[choice], "yes")
-        st.success("Resolved YES — winners paid out.")
-        st.rerun()
-    if c2.button("Resolve NO", width="stretch"):
-        mkt.resolve_market(labels[choice], "no")
-        st.success("Resolved NO — winners paid out.")
-        st.rerun()
+    with st.expander("How are prices set? (the market maker)"):
+        st.write(
+            "There's no order book and no waiting for someone to take the other "
+            "side of your trade. An automated **market maker** is always there "
+            "to trade with you. It uses a well-known formula called the "
+            "**Logarithmic Market Scoring Rule (LMSR)**, designed by economist "
+            "Robin Hanson."
+        )
+        st.write(
+            "The idea is intuitive: the YES price is just the share of all bets "
+            "sitting on YES, so it always lands between 0 and 100% and the two "
+            "sides add up to 100%. In one line, if you like formulas:"
+        )
+        st.latex(
+            r"p_{\text{YES}} = \frac{e^{\,q_{\text{YES}}/b}}"
+            r"{e^{\,q_{\text{YES}}/b} + e^{\,q_{\text{NO}}/b}}"
+        )
+        st.write(
+            "where q is how much has been bought on each side and b is a "
+            "liquidity knob (see below). Every buy nudges the price up, so the "
+            "more you buy at once, the higher the average price you pay — that "
+            "gap is your slippage."
+        )
+        st.markdown(
+            "**Further reading:**\n\n"
+            "- [Prediction market — Wikipedia](https://en.wikipedia.org/wiki/Prediction_market) "
+            "(general overview)\n"
+            "- [A Practical Guide to LMSR — David Pennock's blog]"
+            "(http://blog.oddhead.com/2006/10/30/implementing-hansons-market-maker/) "
+            "(step-by-step walk-through of the exact pricing rule this app uses)\n"
+            "- [Hanson's original paper (PDF)]"
+            "(https://mason.gmu.edu/~rhanson/mktscore.pdf) "
+            "(academic source, short and readable)"
+        )
+
+    with st.expander("What is the liquidity setting b?"):
+        st.write(
+            "b controls how deep the market is. A larger b means each trade "
+            "barely moves the price (good for busy markets); a smaller b means "
+            "prices swing sharply on each trade. It also caps how much the "
+            "market maker can ever subsidise — at most about 0.69 × b coins on a "
+            "yes/no market — which is effectively the prize money the organiser "
+            "puts up."
+        )
+
+    with st.expander("Where does my profit come from?"):
+        st.write(
+            "Winning shares are funded by the stakes of the losing side, topped "
+            "up by a bounded subsidy from the market maker. If the crowd "
+            "forecasts well the maker pays out slightly more than it took in; "
+            "that shortfall, capped at about 0.69 × b, is effectively the prize "
+            "pool the organiser puts up. There is no built-in house edge."
+        )
+
+    with st.expander("How is my P&L calculated?"):
+        st.write(
+            "Open positions are marked to market: value = shares × current "
+            "price. Unrealised P&L is value − cost basis. Closing a position "
+            "realises that number. At settlement, winning shares pay 100 each "
+            "and losing shares pay 0."
+        )
+
+    with st.expander("Should I close early or hold to settlement?"):
+        st.write(
+            "Closing sells back to the maker at the current mark, locking in "
+            "today's value. Holding a winning position to settlement pays the "
+            "full 100 per share — more than the mark whenever the price is "
+            "below 100. The trade-off is risk: until settlement the outcome can "
+            "still move against you."
+        )
+
+    with st.expander("Who settles markets?"):
+        st.write(
+            "An administrator records the outcome from the Admin panel. Winning "
+            "shares are paid out to traders' equity automatically and the "
+            "market closes."
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -250,23 +552,169 @@ def main() -> None:
         auth_screen()
         return
 
-    sidebar(user)
-    st.title("🎲 La Repubblica dei Pronostici")
+    inject_css()
 
-    tabs = ["📈 Markets", "💼 Portfolio", "🏆 Leaderboard"]
+    # Single round-trip per rerun for the account snapshot.
+    cash = mkt.get_user(user["id"])["balance"]
+    positions_list = mkt.get_positions(user["id"])
+    positions = {p["market_id"]: p for p in positions_list}
+    equity = cash + sum(
+        p["value"] for p in positions_list
+        if p["status"] == "open" and (p["yes_shares"] > 0 or p["no_shares"] > 0)
+    )
+
+    sidebar(user, equity, cash)
+    st.markdown("## La Repubblica dei Pronostici")
+    st.caption("Internal prediction market")
+
+    tabs = ["Markets", "Portfolio", "Leaderboard", "Help"]
     if user["is_admin"]:
-        tabs.append("🛠️ Admin")
+        tabs.append("Admin")
     rendered = st.tabs(tabs)
 
     with rendered[0]:
-        markets_tab(user)
+        markets_tab(user, cash, positions)
     with rendered[1]:
-        portfolio_tab(user)
+        portfolio_tab(cash, positions_list)
     with rendered[2]:
-        leaderboard_tab()
+        leaderboard_tab(user)
+    with rendered[3]:
+        faq_tab()
     if user["is_admin"]:
-        with rendered[3]:
-            admin_tab()
+        with rendered[4]:
+            admin_tab(user)
+
+
+# --------------------------------------------------------------------------- #
+# Admin tab
+# --------------------------------------------------------------------------- #
+def admin_tab(user: dict) -> None:
+    sec_new, sec_settle, sec_admins, sec_danger = st.tabs(
+        ["New market", "Settle", "Admins", "Reset"]
+    )
+
+    # ----- Create ------------------------------------------------------------ #
+    with sec_new:
+        with st.form("create_market"):
+            question = st.text_input("Market question", placeholder="Will Italy beat Spain?")
+            description = st.text_area(
+                "Settlement / resolution criteria",
+                placeholder="Result after 90 minutes + stoppage time. Extra time excluded.",
+            )
+            b = st.slider(
+                "Liquidity b (higher = deeper book, less slippage)",
+                20, 400, 100, step=10,
+            )
+            set_deadline = st.checkbox("Set a trading deadline")
+            now_z = datetime.now(ZURICH)
+            dl1, dl2 = st.columns(2)
+            close_date = dl1.date_input(
+                "Close date (Zurich)", value=(now_z + timedelta(days=1)).date()
+            )
+            close_time = dl2.time_input(
+                "Close time (Zurich)", value=time(20, 0), step=timedelta(minutes=1)
+            )
+            st.caption(
+                "Trading stops at this Zurich (CET/CEST) date & time. "
+                "Leave unchecked for a market with no deadline."
+            )
+            if st.form_submit_button("List market", type="primary"):
+                close_at = None
+                valid = True
+                if set_deadline:
+                    close_at = zurich_to_utc(datetime.combine(close_date, close_time))
+                    if close_at <= datetime.utcnow():
+                        st.error("That deadline is in the past (Zurich time).")
+                        valid = False
+                if valid:
+                    try:
+                        mkt.create_market(question, description, float(b), close_at=close_at)
+                        refresh()
+                    except ValueError as exc:
+                        st.error(str(exc))
+
+    # ----- Settle ------------------------------------------------------------ #
+    with sec_settle:
+        open_markets = cached_markets("open")
+        if not open_markets:
+            st.info("No open markets to settle.")
+        else:
+            labels = {}
+            for m in open_markets:
+                tag = "" if m["trading_open"] else "  — trading closed"
+                labels[f"{m['question']} (YES {m['prob_yes']*100:.0f}%){tag}"] = m["id"]
+            choice = st.selectbox("Market", list(labels.keys()))
+            st.caption("Settlement pays winning shares 100 each; losing shares expire at 0.")
+            c1, c2 = st.columns(2)
+            if c1.button("Settle YES", type="primary", width="stretch"):
+                mkt.resolve_market(labels[choice], "yes")
+                refresh()
+            if c2.button("Settle NO", width="stretch"):
+                mkt.resolve_market(labels[choice], "no")
+                refresh()
+
+    # ----- Admins ------------------------------------------------------------ #
+    with sec_admins:
+        users = mkt.list_users()
+        st.markdown("##### Desk members")
+        df = pd.DataFrame(users)
+        df["Role"] = df["is_admin"].map({True: "admin", False: "trader"})
+        st.dataframe(
+            df.rename(columns={"username": "User"})[["User", "Role"]],
+            hide_index=True,
+            width="stretch",
+        )
+
+        traders = [u["username"] for u in users if not u["is_admin"]]
+        admins = [u["username"] for u in users if u["is_admin"]]
+
+        col_promote, col_demote = st.columns(2)
+        with col_promote:
+            st.markdown("**Promote to admin**")
+            if traders:
+                who = st.selectbox("Trader", traders, key="promote_sel")
+                if st.button("Grant admin", width="stretch"):
+                    mkt.set_admin(who, True)
+                    refresh()
+            else:
+                st.caption("No traders to promote.")
+        with col_demote:
+            st.markdown("**Revoke admin**")
+            demotable = [a for a in admins]
+            if len(admins) > 1 and demotable:
+                who = st.selectbox("Admin", demotable, key="demote_sel")
+                if st.button("Revoke admin", width="stretch"):
+                    try:
+                        mkt.set_admin(who, False)
+                        refresh()
+                    except ValueError as exc:
+                        st.error(str(exc))
+            else:
+                st.caption("Need at least one admin at all times.")
+
+    # ----- Danger zone ------------------------------------------------------- #
+    with sec_danger:
+        st.warning(
+            "Resets are irreversible. They wipe live markets, positions and trade history."
+        )
+        mode = st.radio(
+            "Reset scope",
+            [
+                "Soft reset — wipe markets & trades, reset everyone to 1,000",
+                "Hard reset — also delete all accounts except admins",
+                "Nuke — delete everything except me",
+            ],
+        )
+        confirm = st.text_input("Type RESET to confirm")
+        if st.button("Execute reset", type="primary", disabled=confirm != "RESET"):
+            if mode.startswith("Soft"):
+                mkt.reset_game(delete_accounts=False)
+            elif mode.startswith("Hard"):
+                mkt.reset_game(delete_accounts=True, keep_admins=True)
+            else:
+                mkt.reset_game(delete_accounts=True, keep_user_id=user["id"])
+            st.success("Market reset.")
+            refresh()
 
 
 main()

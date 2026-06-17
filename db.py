@@ -57,8 +57,11 @@ if DATABASE_URL.startswith("sqlite"):
     )
 else:
     # Postgres (Supabase / Neon): pool_pre_ping recovers from idle connections
-    # that the serverless database closes between trades.
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True, future=True)
+    # that the serverless database closes between trades; pool_recycle keeps
+    # connections fresh so reruns stay snappy.
+    engine = create_engine(
+        DATABASE_URL, pool_pre_ping=True, pool_recycle=300, future=True
+    )
 
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False, future=True)
 
@@ -90,6 +93,7 @@ class Market(Base):
     status: Mapped[str] = mapped_column(String(20), default="open")  # open | resolved
     outcome: Mapped[str | None] = mapped_column(String(10), nullable=True)  # yes | no
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    close_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # trading deadline (UTC)
 
 
 class Position(Base):
@@ -119,4 +123,11 @@ class Trade(Base):
 
 def init_db() -> None:
     """Create all tables if they do not exist yet."""
+    Base.metadata.create_all(engine)
+
+
+def reset_db() -> None:
+    """Drop every table and recreate them — destroys ALL data. Used to wipe the
+    database when starting a fresh game from scratch."""
+    Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
