@@ -111,6 +111,33 @@ def create_market(
         return m.id
 
 
+def update_market(
+    market_id: int,
+    description: str | None = None,
+    b: float | None = None,
+    close_at: datetime | None = ...,  # sentinel: ... means 'don't change'
+) -> None:
+    """Edit parameters of an open market.
+
+    - description: new resolution text (or None to keep current)
+    - b: new liquidity (changes mark price if trades exist)
+    - close_at: new deadline, None to remove, or ... to leave unchanged
+    """
+    with SessionLocal() as s:
+        m = s.get(Market, market_id, with_for_update=True)
+        if m is None or m.status != "open":
+            raise ValueError("Market is not open")
+        if description is not None:
+            m.description = description.strip()
+        if b is not None:
+            if b < 10:
+                raise ValueError("Liquidity b must be at least 10")
+            m.b = b
+        if close_at is not ...:
+            m.close_at = close_at
+        s.commit()
+
+
 def list_markets(status: str | None = None) -> list[dict]:
     with SessionLocal() as s:
         stmt = select(Market)

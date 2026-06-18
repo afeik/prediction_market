@@ -589,8 +589,8 @@ def main() -> None:
 # Admin tab
 # --------------------------------------------------------------------------- #
 def admin_tab(user: dict) -> None:
-    sec_new, sec_settle, sec_admins, sec_danger = st.tabs(
-        ["New market", "Settle", "Admins", "Reset"]
+    sec_new, sec_edit, sec_settle, sec_admins, sec_danger = st.tabs(
+        ["New market", "Edit", "Settle", "Admins", "Reset"]
     )
 
     # ----- Create ------------------------------------------------------------ #
@@ -632,6 +632,76 @@ def admin_tab(user: dict) -> None:
                         refresh()
                     except ValueError as exc:
                         st.error(str(exc))
+
+    # ----- Edit -------------------------------------------------------------- #
+    with sec_edit:
+        open_markets = cached_markets("open")
+        if not open_markets:
+            st.info("No open markets to edit.")
+        else:
+            edit_labels = {m["question"]: m for m in open_markets}
+            chosen_q = st.selectbox("Market to edit", list(edit_labels.keys()), key="edit_sel")
+            em = edit_labels[chosen_q]
+
+            with st.form("edit_market"):
+                new_desc = st.text_area(
+                    "Description / resolution criteria",
+                    value=em["description"],
+                )
+
+                st.markdown("**Deadline**")
+                has_deadline = st.checkbox(
+                    "Has a trading deadline",
+                    value=em["close_at"] is not None,
+                )
+                now_z = datetime.now(ZURICH)
+                current_close_z = to_zurich(em["close_at"]) if em["close_at"] else None
+                edl1, edl2 = st.columns(2)
+                edit_date = edl1.date_input(
+                    "Close date (Zurich)",
+                    value=current_close_z.date() if current_close_z else (now_z + timedelta(days=1)).date(),
+                    key="edit_date",
+                )
+                edit_time = edl2.time_input(
+                    "Close time (Zurich)",
+                    value=current_close_z.time() if current_close_z else time(20, 0),
+                    step=timedelta(minutes=1),
+                    key="edit_time",
+                )
+
+                st.markdown("**Liquidity**")
+                new_b = st.slider(
+                    "b (higher = deeper book)",
+                    20, 400, int(em["b"]), step=10, key="edit_b",
+                )
+                if em["q_yes"] != 0 or em["q_no"] != 0:
+                    st.caption(
+                        "Changing b on a market with existing trades will shift "
+                        "the displayed mark price. Traders' shares don't change, "
+                        "but their mark-to-market values will."
+                    )
+
+                if st.form_submit_button("Save changes", type="primary"):
+                    close_at_val = ...  # sentinel: don't change
+                    valid = True
+                    if has_deadline:
+                        close_at_val = zurich_to_utc(datetime.combine(edit_date, edit_time))
+                        if close_at_val <= datetime.utcnow():
+                            st.error("That deadline is in the past.")
+                            valid = False
+                    else:
+                        close_at_val = None
+                    if valid:
+                        try:
+                            mkt.update_market(
+                                em["id"],
+                                description=new_desc,
+                                b=float(new_b),
+                                close_at=close_at_val,
+                            )
+                            refresh()
+                        except ValueError as exc:
+                            st.error(str(exc))
 
     # ----- Settle ------------------------------------------------------------ #
     with sec_settle:
