@@ -158,7 +158,7 @@ def auth_screen() -> None:
     first_user = mkt.user_count() == 0
     if first_user:
         st.info("You're the first to register, so your account will be the administrator "
-                "(create and settle markets, manage the desk).")
+                "(create and settle markets, manage the market).")
 
     tab_login, tab_register = st.tabs(["Log in", "Register"])
 
@@ -555,7 +555,7 @@ def history_tab(user: dict) -> None:
 # Help / FAQ tab
 # --------------------------------------------------------------------------- #
 def faq_tab() -> None:
-    st.markdown("#### How the desk works")
+    st.markdown("#### How the market works")
     st.write(
         "Each market is a binary contract that settles at 100 if the event "
         "happens (YES) or 0 if it does not (NO). The quoted price sits between "
@@ -617,10 +617,27 @@ def faq_tab() -> None:
             r"{e^{\,q_{\text{YES}}/b} + e^{\,q_{\text{NO}}/b}}"
         )
         st.write(
-            "where q is how much has been bought on each side and b is a "
-            "liquidity knob (see below). Every buy nudges the price up, so the "
-            "more you buy at once, the higher the average price you pay — that "
-            "gap is your slippage."
+            "where *q* is the total quantity bought on each side and *b* is a "
+            "liquidity parameter (see below)."
+        )
+        st.write(
+            "Everything is priced from a single **cost function**:"
+        )
+        st.latex(
+            r"C(q_Y,\, q_N) \;=\; b \;\ln\!\bigl(e^{\,q_Y/b} + e^{\,q_N/b}\bigr)"
+        )
+        st.write(
+            "When you buy Δ YES shares, you pay the *difference* in C before "
+            "and after your trade:"
+        )
+        st.latex(
+            r"\text{cost} = C(q_Y + \Delta,\; q_N) \;-\; C(q_Y,\; q_N)"
+        )
+        st.write(
+            "Because the price rises as you buy (your own trade pushes "
+            "*q* up), you end up paying the area under the price curve rather "
+            "than the starting price. That's your **slippage**, and your average "
+            "fill price is simply cost ÷ Δ."
         )
         st.markdown(
             "**Further reading:**\n\n"
@@ -942,7 +959,7 @@ def admin_tab(user: dict) -> None:
     # ----- Admins ------------------------------------------------------------ #
     with sec_admins:
         users = mkt.list_users()
-        st.markdown("##### Desk members")
+        st.markdown("##### Members")
         df = pd.DataFrame(users)
         df["Role"] = df["is_admin"].map({True: "admin", False: "trader"})
         st.dataframe(
