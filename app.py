@@ -123,23 +123,24 @@ def pnl_html(value: float, prefix: str = "") -> str:
 
 
 def render_tape(market_id: int) -> None:
-    with st.expander("Trade tape"):
-        trades = cached_trades(market_id, 8)
-        if trades:
-            df = pd.DataFrame(trades)
-            df["Mark"] = (df["prob_after"] * 100).round(0).astype(int).astype(str) + "%"
-            df["Side"] = df["side"].str.upper()
-            df["Payout"] = df["shares"].round(0)
-            df["Stake"] = df["cost"].round(0)
-            st.dataframe(
-                df.rename(columns={"action": "Action"})[
-                    ["Action", "Side", "Payout", "Stake", "Mark"]
-                ],
-                hide_index=True,
-                width="stretch",
-            )
-        else:
-            st.caption("No trades yet.")
+    trades = cached_trades(market_id, 8)
+    if trades:
+        df = pd.DataFrame(trades)
+        df["Mark"] = (df["prob_after"] * 100).round(0).astype(int).astype(str) + "%"
+        df["Side"] = df["side"].str.upper()
+        df["Payout"] = df["shares"].round(0)
+        df["Stake"] = df["cost"].round(0)
+        st.caption("Recent trades")
+        st.dataframe(
+            df.rename(columns={"action": "Action"})[
+                ["Action", "Side", "Payout", "Stake", "Mark"]
+            ],
+            hide_index=True,
+            width="stretch",
+            height=150,
+        )
+    else:
+        st.caption("No trades yet.")
 
 
 if "user" not in st.session_state:
