@@ -572,16 +572,21 @@ def history_tab(user: dict) -> None:
                 user_trades = [t for t in trades if t["user"] == user["username"]]
                 if user_trades:
                     df = pd.DataFrame(user_trades)
+                    df["Time"] = pd.to_datetime(df["time"]).apply(
+                        lambda t: t.replace(tzinfo=UTC).astimezone(ZURICH).strftime("%d %b %H:%M")
+                    )
+                    df["Mark"] = (df["prob_after"] * 100).round(0).astype(int).astype(str) + "%"
                     df["Side"] = df["side"].str.upper()
-                    df["Shares"] = df["shares"].round(0)
-                    df["Cost"] = df["cost"].round(1)
-                    df["Mark after"] = (df["prob_after"] * 100).round(0).astype(int).astype(str) + "%"
+                    df["Payout"] = df["shares"].round(0)
+                    df["Stake"] = df["cost"].round(0)
+                    st.caption("Your trades")
                     st.dataframe(
                         df.rename(columns={"action": "Action"})[
-                            ["Action", "Side", "Shares", "Cost", "Mark after"]
+                            ["Time", "Action", "Side", "Payout", "Stake", "Mark"]
                         ],
                         hide_index=True,
                         width="stretch",
+                        height=150,
                     )
                 else:
                     st.caption("No trades found.")
