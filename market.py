@@ -430,6 +430,79 @@ def recent_trades(market_id: int | None = None, limit: int = 20) -> list[dict]:
         return out
 
 
+def market_pnl_breakdown(market_id: int) -> dict:
+    """Compute per-trader P&L and market-maker P&L for a market.
+
+    For resolved markets: payout = shares on winning side.
+    For open markets: payout = mark-to-market value.
+    Market maker P&L = total collected - total paid out.
+    """
+    with SessionLocal() as s:
+        m = s.get(Market, market_id)
+        if m is None:
+            return {"traders": [], "maker_pnl": 0.0, "status": "unknown"}
+
+        trades = s.scalars(
+            select(Trade).where(Trade.market_id == market_id)
+        ).all()
+
+        # Aggregate per user
+        by_user: dict[int, dict] = {}
+        for t in trades:
+            rec = by_user.setdefault(t.user_id, {"cost": 0.0, "yes": 0.0, "no": 0.0})
+            rec["cost"] += t.cost
+            sign = 1.0 if t.action == "buy" else -1.0
+            if t.side == "yes":
+                rec["yes"] += sign * t.shares
+            else:
+                rec["no"] += sign * t.shares
+
+        # Resolve usernames
+        user_ids = list(by_user.keys())
+        usernames = {}
+        if user_ids:
+            for u in s.scalars(select(User).where(User.id.in_(user_ids))).all():
+                usernames[u.id] = u.username
+
+        # Compute payout per trader
+        traders = []
+        total_collected = 0.0
+        total_paid = 0.0
+
+        for uid, agg in by_user.items():
+            held_yes = max(0.0, agg["yes"])
+            held_no = max(0.0, agg["no"])
+            cost = agg["cost"]
+            total_collected += cost
+
+            if m.status == "resolved":
+                payout = held_yes if m.outcome == "yes" else held_no
+            else:
+                # Mark-to-market for open markets
+                p = pricing.prob_yes(m.q_yes, m.q_no, m.b)
+                payout = held_yes * p + held_no * (1 - p)
+
+            total_paid += payout
+            traders.append({
+                "username": usernames.get(uid, f"user_{uid}"),
+                "side": "YES" if held_yes >= held_no else "NO",
+                "shares": held_yes if held_yes >= held_no else held_no,
+                "cost": cost,
+                "payout": payout,
+                "pnl": payout - cost,
+            })
+
+        traders.sort(key=lambda r: r["pnl"], reverse=True)
+        maker_pnl = total_collected - total_paid
+
+        return {
+            "traders": traders,
+            "maker_pnl": maker_pnl,
+            "status": m.status,
+            "max_loss": m.b * 0.6931,  # b * ln2
+        }
+
+
 # --------------------------------------------------------------------------- #
 # Admin: user management & resets
 # --------------------------------------------------------------------------- #

@@ -849,6 +849,45 @@ def admin_tab(user: dict) -> None:
                 c2.metric("Volume", f"{vol:,.0f}")
                 c3.metric("Traders", str(n_traders))
 
+                # P&L breakdown
+                breakdown = mkt.market_pnl_breakdown(mid)
+                st.markdown("##### P&L by trader")
+                if breakdown["traders"]:
+                    pnl_df = pd.DataFrame(breakdown["traders"])
+                    pnl_df["Side"] = pnl_df["side"]
+                    pnl_df["Shares"] = pnl_df["shares"].round(0)
+                    pnl_df["Cost"] = pnl_df["cost"].round(1)
+                    pnl_df["Payout"] = pnl_df["payout"].round(1)
+                    pnl_df["P&L"] = pnl_df["pnl"].round(1)
+                    st.dataframe(
+                        pnl_df.rename(columns={"username": "Trader"})[
+                            ["Trader", "Side", "Shares", "Cost", "Payout", "P&L"]
+                        ],
+                        hide_index=True,
+                        width="stretch",
+                        column_config={
+                            "P&L": st.column_config.NumberColumn(format="%+.1f"),
+                        },
+                    )
+
+                # Market maker line
+                maker_sign = "+" if breakdown["maker_pnl"] >= 0 else "−"
+                maker_cls = "pos" if breakdown["maker_pnl"] >= 0 else "neg"
+                status_note = "(realised)" if breakdown["status"] == "resolved" else "(mark-to-market)"
+                st.markdown(
+                    f"<div style='margin-top:.6rem;padding:.5rem .7rem;"
+                    f"background:#21262d;border-radius:6px;display:flex;"
+                    f"justify-content:space-between;align-items:center'>"
+                    f"<span class='muted'>Market maker P&amp;L {status_note}</span>"
+                    f"<span class='{maker_cls}' style='font-size:1.05rem'>"
+                    f"{maker_sign}{abs(breakdown['maker_pnl']):,.1f}</span>"
+                    f"</div>"
+                    f"<div class='muted' style='font-size:.75rem;margin-top:.25rem'>"
+                    f"Max possible loss: {breakdown['max_loss']:,.0f} (b × ln2)</div>",
+                    unsafe_allow_html=True,
+                )
+
+                st.markdown("##### Trade tape")
                 # Full trade tape
                 df["Time"] = pd.to_datetime(df["time"]).dt.strftime("%d %b %H:%M")
                 df["Side"] = df["side"].str.upper()
