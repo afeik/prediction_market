@@ -127,12 +127,14 @@ def create_market(
 
 def update_market(
     market_id: int,
+    question: str | None = None,
     description: str | None = None,
     b: float | None = None,
     close_at: datetime | None = ...,  # sentinel: ... means 'don't change'
 ) -> None:
     """Edit parameters of an open market.
 
+    - question: new market question (or None to keep current)
     - description: new resolution text (or None to keep current)
     - b: new liquidity (changes mark price if trades exist)
     - close_at: new deadline, None to remove, or ... to leave unchanged
@@ -141,6 +143,11 @@ def update_market(
         m = s.get(Market, market_id, with_for_update=True)
         if m is None or m.status != "open":
             raise ValueError("Market is not open")
+        if question is not None:
+            q = question.strip()
+            if not q:
+                raise ValueError("Question cannot be empty")
+            m.question = q
         if description is not None:
             m.description = description.strip()
         if b is not None:

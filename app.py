@@ -842,6 +842,10 @@ def admin_tab(user: dict) -> None:
             em = edit_labels[chosen_q]
 
             with st.form("edit_market"):
+                new_question = st.text_input(
+                    "Market question",
+                    value=em["question"],
+                )
                 new_desc = st.text_area(
                     "Description / resolution criteria",
                     value=em["description"],
@@ -893,6 +897,7 @@ def admin_tab(user: dict) -> None:
                         try:
                             mkt.update_market(
                                 em["id"],
+                                question=new_question,
                                 description=new_desc,
                                 b=float(new_b),
                                 close_at=close_at_val,
