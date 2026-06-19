@@ -12,6 +12,7 @@ import binascii
 import hashlib
 import hmac
 import os
+import math
 from datetime import datetime
 
 from sqlalchemy import delete, func, select
@@ -95,15 +96,28 @@ def create_market(
     description: str = "",
     b: float = DEFAULT_LIQUIDITY,
     close_at: datetime | None = None,
+    initial_prob: float = 0.5,
 ) -> int:
     question = question.strip()
     if not question:
         raise ValueError("Question is required")
+    if not 0.01 <= initial_prob <= 0.99:
+        raise ValueError("Starting probability must be between 1% and 99%")
+    # Set initial q values so the LMSR probability matches initial_prob.
+    # p = exp(q_yes/b) / (exp(q_yes/b) + exp(q_no/b));  keep one at 0.
+    if initial_prob >= 0.5:
+        q_yes = b * math.log(initial_prob / (1 - initial_prob))
+        q_no = 0.0
+    else:
+        q_yes = 0.0
+        q_no = b * math.log((1 - initial_prob) / initial_prob)
     with SessionLocal() as s:
         m = Market(
             question=question,
             description=description.strip(),
             b=b,
+            q_yes=q_yes,
+            q_no=q_no,
             close_at=close_at,
         )
         s.add(m)

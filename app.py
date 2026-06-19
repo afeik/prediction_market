@@ -785,6 +785,11 @@ def admin_tab(user: dict) -> None:
                 "Settlement / resolution criteria",
                 placeholder="Result after 90 minutes + stoppage time. Extra time excluded.",
             )
+            init_prob = st.slider(
+                "Starting probability (YES %)",
+                1, 99, 50, step=1,
+                help="Opening odds — e.g. 70 means the market starts at YES 70% / NO 30%.",
+            )
             b = st.slider(
                 "Liquidity b (higher = deeper book, less slippage)",
                 20, 400, 100, step=10,
@@ -812,7 +817,10 @@ def admin_tab(user: dict) -> None:
                         valid = False
                 if valid:
                     try:
-                        mkt.create_market(question, description, float(b), close_at=close_at)
+                        mkt.create_market(
+                            question, description, float(b),
+                            close_at=close_at, initial_prob=init_prob / 100,
+                        )
                         refresh()
                     except ValueError as exc:
                         st.error(str(exc))
