@@ -126,6 +126,9 @@ def render_tape(market_id: int) -> None:
     trades = cached_trades(market_id, 8)
     if trades:
         df = pd.DataFrame(trades)
+        df["Time"] = pd.to_datetime(df["time"]).apply(
+            lambda t: t.replace(tzinfo=UTC).astimezone(ZURICH).strftime("%d %b %H:%M")
+        )
         df["Mark"] = (df["prob_after"] * 100).round(0).astype(int).astype(str) + "%"
         df["Side"] = df["side"].str.upper()
         df["Payout"] = df["shares"].round(0)
@@ -133,7 +136,7 @@ def render_tape(market_id: int) -> None:
         st.caption("Recent trades")
         st.dataframe(
             df.rename(columns={"action": "Action"})[
-                ["Action", "Side", "Payout", "Stake", "Mark"]
+                ["Time", "Action", "Side", "Payout", "Stake", "Mark"]
             ],
             hide_index=True,
             width="stretch",
