@@ -220,32 +220,48 @@ def markets_tab(user: dict, cash: float, positions: dict) -> None:
 
     for m in live:
         p = m["prob_yes"]
+        pos = positions.get(m["id"])
+        held_yes = pos["yes_shares"] if pos else 0.0
+        held_no = pos["no_shares"] if pos else 0.0
+
         with st.container(border=True):
+            # ---- Always-visible compact summary ---- #
             head_l, head_r = st.columns([4, 1])
             with head_l:
                 st.markdown(f"<span class='tkr'>{m['question']}</span>", unsafe_allow_html=True)
                 if m["description"]:
                     st.markdown(f"<span class='muted'>{m['description']}</span>", unsafe_allow_html=True)
             with head_r:
-                deadline_line = ""
+                extras = ""
+                if held_yes > 0 or held_no > 0:
+                    legs = []
+                    if held_yes > 0:
+                        legs.append(f"YES {held_yes:,.0f}")
+                    if held_no > 0:
+                        legs.append(f"NO {held_no:,.0f}")
+                    extras += (
+                        f"<div class='muted' style='font-size:.72rem;margin-top:3px'>"
+                        f"📊 {' · '.join(legs)}</div>"
+                    )
                 if m.get("close_at") is not None:
-                    deadline_line = (
-                        f"<div class='muted' style='font-size:.72rem;margin-top:5px'>"
+                    extras += (
+                        f"<div class='muted' style='font-size:.72rem;margin-top:3px'>"
                         f"Expires {fmt_zurich(m['close_at'])}</div>"
                     )
                 st.markdown(
                     f"<div style='text-align:right'>"
                     f"<span class='pill pill-yes'>YES {p*100:.0f}%</span>"
-                    f"{deadline_line}</div>",
+                    f"{extras}</div>",
                     unsafe_allow_html=True,
                 )
             st.progress(p, text=f"YES {p*100:.1f}%  ·  NO {(1-p)*100:.1f}%")
 
-            trade_col, pos_col = st.columns([3, 2], gap="large")
+            # ---- Collapsible trade / position panel ---- #
+            with st.expander("Trade / Position"):
+                trade_col, pos_col = st.columns([3, 2], gap="large")
 
-            # ----- Order ticket (buy) -------------------------------------- #
-            with trade_col:
-                with st.container(border=True):
+                # ----- Order ticket (buy) ---------------------------------- #
+                with trade_col:
                     st.markdown("##### Trade")
                     amount = st.number_input(
                         "Stake (coins)",
@@ -289,13 +305,9 @@ def markets_tab(user: dict, cash: float, positions: dict) -> None:
                         except ValueError as exc:
                             st.error(str(exc))
 
-            # ----- Current position (hold / sell) -------------------------- #
-            with pos_col:
-                with st.container(border=True):
+                # ----- Current position (hold / sell) ---------------------- #
+                with pos_col:
                     st.markdown("##### Your position")
-                    pos = positions.get(m["id"])
-                    held_yes = pos["yes_shares"] if pos else 0.0
-                    held_no = pos["no_shares"] if pos else 0.0
                     if held_yes > 0 or held_no > 0:
                         for leg_side, qty in (("YES", held_yes), ("NO", held_no)):
                             if qty <= 0:
@@ -328,7 +340,7 @@ def markets_tab(user: dict, cash: float, positions: dict) -> None:
                             unsafe_allow_html=True,
                         )
 
-            render_tape(m["id"])
+                render_tape(m["id"])
 
     if closed:
         st.markdown("##### Closed — awaiting settlement")
