@@ -18,7 +18,7 @@ from datetime import datetime
 from sqlalchemy import delete, func, select
 
 import pricing
-from db import Market, Position, SessionLocal, Trade, User, init_db
+from db import Market, Position, Proposal, SessionLocal, Trade, User, init_db
 
 STARTING_BALANCE = 1000.0
 DEFAULT_LIQUIDITY = 100.0
@@ -608,6 +608,64 @@ def set_admin(username: str, make_admin: bool) -> None:
         s.commit()
 
 
+# --------------------------------------------------------------------------- #
+# Proposals
+# --------------------------------------------------------------------------- #
+def create_proposal(user_id: int, question: str, description: str = "") -> int:
+    question = question.strip()
+    if not question:
+        raise ValueError("Question is required")
+    with SessionLocal() as s:
+        p = Proposal(
+            user_id=user_id,
+            question=question,
+            description=description.strip(),
+        )
+        s.add(p)
+        s.commit()
+        return p.id
+
+
+def list_proposals(status: str | None = None) -> list[dict]:
+    with SessionLocal() as s:
+        stmt = select(Proposal, User.username).join(User, Proposal.user_id == User.id)
+        if status:
+            stmt = stmt.where(Proposal.status == status)
+        stmt = stmt.order_by(Proposal.created_at.desc())
+        out = []
+        for p, username in s.execute(stmt).all():
+            out.append({
+                "id": p.id,
+                "question": p.question,
+                "description": p.description,
+                "status": p.status,
+                "username": username,
+                "created_at": p.created_at,
+            })
+        return out
+
+
+def approve_proposal(proposal_id: int) -> dict:
+    """Mark a proposal as approved. Returns the proposal data for market creation."""
+    with SessionLocal() as s:
+        p = s.get(Proposal, proposal_id)
+        if p is None or p.status != "pending":
+            raise ValueError("Proposal not found or already handled")
+        p.status = "approved"
+        data = {"question": p.question, "description": p.description}
+        s.commit()
+        return data
+
+
+def reject_proposal(proposal_id: int) -> None:
+    with SessionLocal() as s:
+        p = s.get(Proposal, proposal_id)
+        if p is None or p.status != "pending":
+            raise ValueError("Proposal not found or already handled")
+        p.status = "rejected"
+        s.commit()
+
+
 def reset_game(
     delete_accounts: bool = False,
     keep_user_id: int | None = None,
@@ -625,6 +683,7 @@ def reset_game(
         s.execute(delete(Trade))
         s.execute(delete(Position))
         s.execute(delete(Market))
+        s.execute(delete(Proposal))
         if delete_accounts:
             stmt = delete(User)
             if keep_admins:

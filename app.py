@@ -77,6 +77,11 @@ def cached_trades(market_id: int, limit: int = 8):
     return mkt.recent_trades(market_id, limit)
 
 
+@st.cache_data(ttl=5, show_spinner=False)
+def cached_proposals(status: str | None = None):
+    return mkt.list_proposals(status)
+
+
 def refresh() -> None:
     """Invalidate cached reads after a write, then rerun."""
     st.cache_data.clear()
@@ -759,7 +764,7 @@ def main() -> None:
     st.markdown("## La Repubblica dei Pronostici")
     st.caption("Internal prediction market")
 
-    tabs = ["Markets", "Portfolio", "History", "Leaderboard", "Help"]
+    tabs = ["Markets", "Portfolio", "History", "Leaderboard", "Propose", "Help"]
     if user["is_admin"]:
         tabs.append("Admin")
     rendered = st.tabs(tabs)
@@ -773,18 +778,59 @@ def main() -> None:
     with rendered[3]:
         leaderboard_tab(user)
     with rendered[4]:
+        propose_tab(user)
+    with rendered[5]:
         faq_tab()
     if user["is_admin"]:
-        with rendered[5]:
+        with rendered[6]:
             admin_tab(user)
+
+
+# --------------------------------------------------------------------------- #
+# Propose tab (visible to all users)
+# --------------------------------------------------------------------------- #
+def propose_tab(user: dict) -> None:
+    st.markdown("#### Propose a market")
+    st.caption("Suggest a question. An admin will review and can list it as a live market.")
+
+    with st.form("propose_form"):
+        question = st.text_input("Question", placeholder="Will we ship feature X by Friday?")
+        description = st.text_area(
+            "Resolution criteria (optional)",
+            placeholder="How should the admin decide YES or NO?",
+        )
+        if st.form_submit_button("Submit proposal", type="primary"):
+            try:
+                mkt.create_proposal(user["id"], question, description)
+                refresh()
+            except ValueError as exc:
+                st.error(str(exc))
+
+    proposals = cached_proposals()
+    my = [p for p in proposals if p["username"] == user["username"]]
+    if my:
+        st.markdown("#### Your proposals")
+        for p in my:
+            status_pill = {
+                "pending": "⏳ Pending",
+                "approved": "✅ Approved",
+                "rejected": "❌ Rejected",
+            }.get(p["status"], p["status"])
+            st.markdown(
+                f"<div style='padding:.4rem 0;border-bottom:1px solid #30363d'>"
+                f"<span class='tkr'>{p['question']}</span>"
+                f"<span class='muted' style='float:right'>{status_pill}</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
 
 # --------------------------------------------------------------------------- #
 # Admin tab
 # --------------------------------------------------------------------------- #
 def admin_tab(user: dict) -> None:
-    sec_new, sec_edit, sec_settle, sec_delete, sec_activity, sec_admins, sec_danger = st.tabs(
-        ["New market", "Edit", "Settle", "Delete", "Activity", "Admins", "Reset"]
+    sec_new, sec_edit, sec_settle, sec_delete, sec_proposals, sec_activity, sec_admins, sec_danger = st.tabs(
+        ["New market", "Edit", "Settle", "Delete", "Proposals", "Activity", "Admins", "Reset"]
     )
 
     # ----- Create ------------------------------------------------------------ #
@@ -957,6 +1003,41 @@ def admin_tab(user: dict) -> None:
                     refresh()
                 except ValueError as exc:
                     st.error(str(exc))
+
+    # ----- Proposals --------------------------------------------------------- #
+    with sec_proposals:
+        pending = cached_proposals("pending")
+        if not pending:
+            st.info("No pending proposals.")
+        else:
+            for p in pending:
+                with st.container(border=True):
+                    st.markdown(
+                        f"<span class='tkr'>{p['question']}</span>"
+                        f"<div class='muted' style='font-size:.82rem'>"
+                        f"by {p['username']} · {fmt_zurich(p['created_at'])}</div>",
+                        unsafe_allow_html=True,
+                    )
+                    if p["description"]:
+                        st.markdown(f"<span class='muted'>{p['description']}</span>", unsafe_allow_html=True)
+                    c_approve, c_reject = st.columns(2)
+                    if c_approve.button("✅ Approve & create", key=f"approve_{p['id']}", type="primary", width="stretch"):
+                        data = mkt.approve_proposal(p["id"])
+                        mkt.create_market(data["question"], data["description"])
+                        refresh()
+                    if c_reject.button("❌ Reject", key=f"reject_{p['id']}", width="stretch"):
+                        mkt.reject_proposal(p["id"])
+                        refresh()
+
+        # Show recently handled proposals
+        handled = [p for p in cached_proposals() if p["status"] != "pending"]
+        if handled:
+            with st.expander(f"Handled ({len(handled)})"):
+                for p in handled[:20]:
+                    icon = "✅" if p["status"] == "approved" else "❌"
+                    st.markdown(
+                        f"{icon} **{p['question']}** — {p['username']}",
+                    )
 
     # ----- Activity ---------------------------------------------------------- #
     with sec_activity:
