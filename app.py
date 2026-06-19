@@ -563,43 +563,7 @@ def faq_tab() -> None:
         "trades play money, so no real cash is at stake."
     )
 
-    with st.expander("What are shares? (with a worked example)", expanded=True):
-        st.write(
-            "A **share** is a ticket that pays exactly **1 coin** if you're on "
-            "the winning side at settlement, and **0** if you're not."
-        )
-        st.write("Here's a concrete example:")
-        st.markdown(
-            """
-| Step | What happens |
-|------|------|
-| Market opens | *"Will it rain tomorrow?"* — starts at **50 / 50** |
-| You buy YES, stake 25 coins | You get **45 YES shares** (avg price 56¢ each). Mark moves to 61%. |
-| Another trader buys NO, stakes 10 | They get **23 NO shares** (avg price 43¢). Mark goes back to 55%. |
-| Admin settles → **YES** | Your 45 shares pay **45 coins**. You spent 25, so **profit = +20**. The NO trader's shares pay 0 — their 10 coins go to fund your winnings. |
-"""
-        )
-        st.write(
-            "**Key points:**"
-        )
-        st.markdown(
-            "- You don't buy \"1 share at a fixed price\". Your stake buys *as many* "
-            "shares as it can afford — but the price rises as you buy, so bigger "
-            "stakes get slightly worse average prices (slippage).\n"
-            "- The **payout** number in the order ticket is your shares — that's "
-            "exactly how many coins you'd receive if you win.\n"
-            "- Your **profit** = payout − cost. If you buy 45 shares for 25 coins "
-            "and win, you make 20. If you lose, you get 0 and lose the 25.\n"
-            "- You can **sell (close)** any time before settlement at the current "
-            "mark price — you don't have to wait for the outcome."
-        )
-        st.write(
-            "**Think of it like betting odds:** a 60% price means you pay 60¢ per "
-            "share to win 1 coin — similar to 1.67× odds. The cheaper the price "
-            "(less likely event), the bigger the payout if you're right."
-        )
-
-    with st.expander("How are prices set? (the market maker)"):
+    with st.expander("How are prices set? (the market maker)", expanded=True):
         st.write(
             "There's no order book and no waiting for someone to take the other "
             "side of your trade. An automated **market maker** is always there "
@@ -649,6 +613,42 @@ def faq_tab() -> None:
             "- [Hanson's original paper (PDF)]"
             "(https://mason.gmu.edu/~rhanson/mktscore.pdf) "
             "(academic source, short and readable)"
+        )
+
+    with st.expander("What are shares? (with a worked example)"):
+        st.write(
+            "A **share** is a ticket that pays exactly **1 coin** if you're on "
+            "the winning side at settlement, and **0** if you're not."
+        )
+        st.write("Here's a concrete example:")
+        st.markdown(
+            """
+| Step | What happens |
+|------|------|
+| Market opens | *"Will it rain tomorrow?"* — starts at **50 / 50** |
+| You buy YES, stake 25 coins | You get **45 YES shares** (avg price 56¢ each). Mark moves to 61%. |
+| Another trader buys NO, stakes 10 | They get **23 NO shares** (avg price 43¢). Mark goes back to 55%. |
+| Admin settles → **YES** | Your 45 shares pay **45 coins**. You spent 25, so **profit = +20**. The NO trader's shares pay 0 — their 10 coins go to fund your winnings. |
+"""
+        )
+        st.write(
+            "**Key points:**"
+        )
+        st.markdown(
+            "- You don't buy \"1 share at a fixed price\". Your stake buys *as many* "
+            "shares as it can afford — but the price rises as you buy, so bigger "
+            "stakes get slightly worse average prices (slippage).\n"
+            "- The **payout** number in the order ticket is your shares — that's "
+            "exactly how many coins you'd receive if you win.\n"
+            "- Your **profit** = payout − cost. If you buy 45 shares for 25 coins "
+            "and win, you make 20. If you lose, you get 0 and lose the 25.\n"
+            "- You can **sell (close)** any time before settlement at the current "
+            "mark price — you don't have to wait for the outcome."
+        )
+        st.write(
+            "**Think of it like betting odds:** a 60% price means you pay 60¢ per "
+            "share to win 1 coin — similar to 1.67× odds. The cheaper the price "
+            "(less likely event), the bigger the payout if you're right."
         )
 
     with st.expander("What is the liquidity setting b?"):
@@ -719,7 +719,7 @@ def main() -> None:
     st.markdown("## La Repubblica dei Pronostici")
     st.caption("Internal prediction market")
 
-    tabs = ["Markets", "Portfolio", "Leaderboard", "History", "Help"]
+    tabs = ["Markets", "Portfolio", "History", "Leaderboard", "Help"]
     if user["is_admin"]:
         tabs.append("Admin")
     rendered = st.tabs(tabs)
@@ -729,9 +729,9 @@ def main() -> None:
     with rendered[1]:
         portfolio_tab(cash, positions_list)
     with rendered[2]:
-        leaderboard_tab(user)
-    with rendered[3]:
         history_tab(user)
+    with rendered[3]:
+        leaderboard_tab(user)
     with rendered[4]:
         faq_tab()
     if user["is_admin"]:
