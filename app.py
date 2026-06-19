@@ -453,6 +453,69 @@ def leaderboard_tab(current_user: dict) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# History tab
+# --------------------------------------------------------------------------- #
+def history_tab(user: dict) -> None:
+    history = mkt.get_history(user["id"])
+    if not history:
+        st.info("No settled markets yet. Once an admin resolves a market, your results appear here.")
+        return
+
+    total_pnl = sum(h["pnl"] for h in history)
+    wins = sum(1 for h in history if h["pnl"] > 0)
+    losses = sum(1 for h in history if h["pnl"] < 0)
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Realised P&L", f"{total_pnl:+,.0f}")
+    c2.metric("Wins", str(wins))
+    c3.metric("Losses", str(losses))
+
+    st.markdown("#### Settled markets")
+    for h in history:
+        outcome_cls = "pos" if h["outcome"] == "YES" else "neg"
+        your_result = "pos" if h["pnl"] >= 0 else "neg"
+        your_sign = "+" if h["pnl"] >= 0 else "−"
+
+        st.markdown(
+            f"<div style='display:flex;justify-content:space-between;align-items:center;"
+            f"padding:.5rem 0;border-bottom:1px solid #30363d'>"
+            f"<div>"
+            f"<b>{h['question']}</b><br>"
+            f"<span class='muted'>Outcome:</span> <span class='{outcome_cls}'>{h['outcome']}</span>"
+            f" &nbsp;·&nbsp; <span class='muted'>Your side:</span> {h['side']}"
+            f" &nbsp;·&nbsp; <span class='muted'>Shares held:</span> <span class='mono'>{h['shares_at_settle']:,.0f}</span>"
+            f"</div>"
+            f"<div style='text-align:right'>"
+            f"<span class='muted'>Cost</span> <span class='mono'>{h['cost']:,.0f}</span>"
+            f" &nbsp;·&nbsp; <span class='muted'>Payout</span> <span class='mono'>{h['payout']:,.0f}</span>"
+            f" &nbsp;·&nbsp; <span class='muted'>P&amp;L</span> "
+            f"<span class='{your_result}'>{your_sign}{abs(h['pnl']):,.0f}</span>"
+            f"</div></div>",
+            unsafe_allow_html=True,
+        )
+
+        # Expandable trade log for this market
+        with st.expander(f"Trade log"):
+            trades = mkt.recent_trades(market_id=h["market_id"], limit=50)
+            user_trades = [t for t in trades if t["user"] == user["username"]]
+            if user_trades:
+                df = pd.DataFrame(user_trades)
+                df["Side"] = df["side"].str.upper()
+                df["Shares"] = df["shares"].round(0)
+                df["Cost"] = df["cost"].round(1)
+                df["Mark after"] = (df["prob_after"] * 100).round(0).astype(int).astype(str) + "%"
+                st.dataframe(
+                    df.rename(columns={"action": "Action"})[
+                        ["Action", "Side", "Shares", "Cost", "Mark after"]
+                    ],
+                    hide_index=True,
+                    width="stretch",
+                )
+            else:
+                st.caption("No trades found.")
+
+
+# --------------------------------------------------------------------------- #
 # Help / FAQ tab
 # --------------------------------------------------------------------------- #
 def faq_tab() -> None:
@@ -567,7 +630,7 @@ def main() -> None:
     st.markdown("## La Repubblica dei Pronostici")
     st.caption("Internal prediction market")
 
-    tabs = ["Markets", "Portfolio", "Leaderboard", "Help"]
+    tabs = ["Markets", "Portfolio", "Leaderboard", "History", "Help"]
     if user["is_admin"]:
         tabs.append("Admin")
     rendered = st.tabs(tabs)
@@ -579,9 +642,11 @@ def main() -> None:
     with rendered[2]:
         leaderboard_tab(user)
     with rendered[3]:
+        history_tab(user)
+    with rendered[4]:
         faq_tab()
     if user["is_admin"]:
-        with rendered[4]:
+        with rendered[5]:
             admin_tab(user)
 
 

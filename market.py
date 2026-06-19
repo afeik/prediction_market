@@ -315,7 +315,68 @@ def get_positions(user_id: int) -> list[dict]:
         return out
 
 
-def leaderboard() -> list[dict]:
+def get_history(user_id: int) -> list[dict]:
+    """Return resolved markets the user traded in, with realised P&L.
+
+    Since positions are zeroed at settlement, we reconstruct from trade records:
+    - net_cost = sum of trade.cost (buys positive, sells negative)
+    - payout = shares held at settlement × 1 (if winning side) or 0
+
+    We derive shares-at-settlement as net bought minus net sold per side.
+    """
+    with SessionLocal() as s:
+        # All resolved markets
+        resolved = {
+            m.id: m
+            for m in s.scalars(select(Market).where(Market.status == "resolved")).all()
+        }
+        if not resolved:
+            return []
+
+        # All trades by this user on resolved markets
+        trades = s.scalars(
+            select(Trade).where(
+                Trade.user_id == user_id,
+                Trade.market_id.in_(resolved.keys()),
+            )
+        ).all()
+
+        # Aggregate per market
+        by_market: dict[int, dict] = {}
+        for t in trades:
+            rec = by_market.setdefault(t.market_id, {"cost": 0.0, "yes": 0.0, "no": 0.0})
+            rec["cost"] += t.cost
+            sign = 1.0 if t.action == "buy" else -1.0
+            if t.side == "yes":
+                rec["yes"] += sign * t.shares
+            else:
+                rec["no"] += sign * t.shares
+
+        out = []
+        for mid, agg in by_market.items():
+            m = resolved[mid]
+            # Shares held at settlement (should be >= 0 after sells)
+            held_yes = max(0.0, agg["yes"])
+            held_no = max(0.0, agg["no"])
+            # Payout at settlement
+            payout = held_yes if m.outcome == "yes" else held_no
+            realised_pnl = payout - agg["cost"]
+            side = "YES" if held_yes > held_no else "NO" if held_no > 0 else "-"
+            out.append(
+                {
+                    "market_id": m.id,
+                    "question": m.question,
+                    "outcome": m.outcome.upper() if m.outcome else "-",
+                    "side": side,
+                    "shares_at_settle": held_yes if side == "YES" else held_no,
+                    "cost": agg["cost"],
+                    "payout": payout,
+                    "pnl": realised_pnl,
+                    "created_at": m.created_at,
+                }
+            )
+        out.sort(key=lambda r: r["created_at"], reverse=True)
+        return out
     """Equity = cash + mark-to-market value of open positions."""
     with SessionLocal() as s:
         users = s.scalars(select(User)).all()
