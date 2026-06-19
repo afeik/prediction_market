@@ -132,8 +132,8 @@ def render_tape(market_id: int) -> None:
             df["Payout"] = df["shares"].round(0)
             df["Stake"] = df["cost"].round(0)
             st.dataframe(
-                df.rename(columns={"user": "Trader", "action": "Action"})[
-                    ["Trader", "Action", "Side", "Payout", "Stake", "Mark"]
+                df.rename(columns={"action": "Action"})[
+                    ["Action", "Side", "Payout", "Stake", "Mark"]
                 ],
                 hide_index=True,
                 width="stretch",
