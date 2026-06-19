@@ -39,8 +39,7 @@ First user to register becomes admin. Uses SQLite by default.
 3. Deploy `app.py` on [share.streamlit.io](https://share.streamlit.io) with this secret:
 
 ```toml
-[database]
-url = "postgresql://<user>:<pass>@<host>/<db>?sslmode=require"
+DATABASE_URL = "postgresql://<user>:<pass>@<host>/<db>?sslmode=require"
 ```
 
 ---
