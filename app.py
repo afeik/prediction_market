@@ -540,14 +540,20 @@ def history_tab(user: dict) -> None:
       <div class='muted' style='font-size:.78rem'>Cost: {h['cost']:,.0f} → Payout: {h['payout']:,.0f}</div>
     </div>
   </div>
-  <div style='margin-top:.6rem;background:#21262d;border-radius:4px;height:6px;overflow:hidden'>
-    <div style='background:{bar_color};height:100%;width:{bar_pct:.0f}%;border-radius:4px'></div>
+  <div style='margin-top:.6rem;background:#21262d;border-radius:6px;height:3px;overflow:hidden'>
+    <div style='background:{bar_color};height:100%;width:{bar_pct:.0f}%'></div>
   </div>
 </div>""",
                 unsafe_allow_html=True,
             )
 
             with st.expander("Trade log"):
+                d1, d2, d3, d4 = st.columns(4)
+                d1.metric("Side", h["side"])
+                d2.metric("Shares", f"{h['shares_at_settle']:,.0f}")
+                d3.metric("Cost", f"{h['cost']:,.0f}")
+                d4.metric("Payout", f"{h['payout']:,.0f}")
+
                 trades = mkt.recent_trades(market_id=m["id"], limit=50)
                 user_trades = [t for t in trades if t["user"] == user["username"]]
                 if user_trades:
