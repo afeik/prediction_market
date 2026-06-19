@@ -270,6 +270,46 @@ def resolve_market(market_id: int, outcome: str) -> None:
         s.commit()
 
 
+def delete_market(market_id: int) -> str:
+    """Delete a market entirely, refunding every trader their net cost.
+
+    All trades, positions and the market row itself are removed. Each trader
+    gets back the net cash they spent (buys minus sell proceeds), restoring
+    their balance to where it would be had the market never existed.
+
+    Returns the question text of the deleted market (for confirmation messages).
+    """
+    with SessionLocal() as s:
+        m = s.get(Market, market_id, with_for_update=True)
+        if m is None:
+            raise ValueError("Market not found")
+        if m.status == "resolved":
+            raise ValueError("Cannot delete an already-settled market")
+
+        question = m.question
+
+        # Aggregate net cost per trader
+        trades = s.scalars(
+            select(Trade).where(Trade.market_id == market_id)
+        ).all()
+        cost_by_user: dict[int, float] = {}
+        for t in trades:
+            cost_by_user[t.user_id] = cost_by_user.get(t.user_id, 0.0) + t.cost
+
+        # Refund each trader
+        for uid, net_cost in cost_by_user.items():
+            u = s.get(User, uid, with_for_update=True)
+            if u is not None:
+                u.balance += net_cost
+
+        # Remove all related records, then the market
+        s.execute(delete(Trade).where(Trade.market_id == market_id))
+        s.execute(delete(Position).where(Position.market_id == market_id))
+        s.delete(m)
+        s.commit()
+        return question
+
+
 # --------------------------------------------------------------------------- #
 # Portfolio & leaderboard
 # --------------------------------------------------------------------------- #

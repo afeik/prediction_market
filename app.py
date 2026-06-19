@@ -755,8 +755,8 @@ def main() -> None:
 # Admin tab
 # --------------------------------------------------------------------------- #
 def admin_tab(user: dict) -> None:
-    sec_new, sec_edit, sec_settle, sec_activity, sec_admins, sec_danger = st.tabs(
-        ["New market", "Edit", "Settle", "Activity", "Admins", "Reset"]
+    sec_new, sec_edit, sec_settle, sec_delete, sec_activity, sec_admins, sec_danger = st.tabs(
+        ["New market", "Edit", "Settle", "Delete", "Activity", "Admins", "Reset"]
     )
 
     # ----- Create ------------------------------------------------------------ #
@@ -888,6 +888,34 @@ def admin_tab(user: dict) -> None:
             if c2.button("Settle NO", width="stretch"):
                 mkt.resolve_market(labels[choice], "no")
                 refresh()
+
+    # ----- Delete ------------------------------------------------------------ #
+    with sec_delete:
+        open_markets = cached_markets("open")
+        if not open_markets:
+            st.info("No open markets to delete.")
+        else:
+            del_labels = {}
+            for m in open_markets:
+                tag = "" if m["trading_open"] else "  — trading closed"
+                del_labels[f"{m['question']} (YES {m['prob_yes']*100:.0f}%){tag}"] = m["id"]
+            del_choice = st.selectbox("Market", list(del_labels.keys()), key="del_sel")
+            st.warning(
+                "Deleting a market **refunds every trader** their net cost and "
+                "removes the market completely — it will no longer appear anywhere. "
+                "This cannot be undone."
+            )
+            confirm_del = st.text_input("Type DELETE to confirm", key="del_confirm")
+            if st.button(
+                "Delete market", type="primary",
+                disabled=confirm_del != "DELETE",
+            ):
+                try:
+                    q = mkt.delete_market(del_labels[del_choice])
+                    st.success(f"Deleted: {q}. All traders have been refunded.")
+                    refresh()
+                except ValueError as exc:
+                    st.error(str(exc))
 
     # ----- Activity ---------------------------------------------------------- #
     with sec_activity:
