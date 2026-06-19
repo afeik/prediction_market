@@ -769,7 +769,7 @@ def main() -> None:
     st.markdown("## La Repubblica dei Pronostici")
     st.caption("Internal prediction market")
 
-    tabs = ["Markets", "Portfolio", "History", "Leaderboard", "Propose", "Help"]
+    tabs = ["Markets", "Portfolio", "History", "Leaderboard", "Propose", "FAQ"]
     if user["is_admin"]:
         tabs.append("Admin")
     rendered = st.tabs(tabs)
