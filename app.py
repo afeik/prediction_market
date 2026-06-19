@@ -1,11 +1,11 @@
-"""La Repubblica dei Pronostici — an internal, multi-user prediction market.
+"""Streamlit front-end for the prediction market.
 
 Run locally:
     streamlit run app.py
 
-Traders register their own accounts, start with 1000 virtual coins, and trade
-YES/NO contracts against an LMSR market maker. Admins create and settle
-markets, manage other admins, and can reset the game.
+Traders register accounts, start with 1000 virtual coins, and trade YES/NO
+contracts against an LMSR market maker. Admins create and settle markets,
+manage users, and can reset the game.
 """
 from __future__ import annotations
 

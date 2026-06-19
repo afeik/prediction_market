@@ -1,11 +1,10 @@
-"""One-shot database reset for La Repubblica dei Pronostici.
+"""One-shot database reset.
 
-Reads DATABASE_URL straight from .streamlit/secrets.toml (so the Neon password
-never appears in the shell command), drops every table, and recreates them with
-the current schema — including the new `close_at` trading-deadline column.
+Reads DATABASE_URL from .streamlit/secrets.toml, drops every table, and
+recreates them with the current schema.
 
 Usage:
-    /opt/miniconda3/envs/pronostici/bin/python reset_database.py
+    python reset_database.py
 """
 from __future__ import annotations
 
