@@ -211,6 +211,11 @@ def sidebar(user: dict, equity: float, cash: float) -> None:
         if st.button("Log out", width="stretch"):
             st.session_state.user = None
             refresh()
+        st.markdown(
+            "<div style='position:fixed;bottom:1rem;left:1rem;font-size:.7rem;color:#7d8590'>"
+            "Created by Andreas Feik</div>",
+            unsafe_allow_html=True,
+        )
 
 
 # --------------------------------------------------------------------------- #
