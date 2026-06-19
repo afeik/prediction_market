@@ -690,8 +690,8 @@ def main() -> None:
 # Admin tab
 # --------------------------------------------------------------------------- #
 def admin_tab(user: dict) -> None:
-    sec_new, sec_edit, sec_settle, sec_admins, sec_danger = st.tabs(
-        ["New market", "Edit", "Settle", "Admins", "Reset"]
+    sec_new, sec_edit, sec_settle, sec_activity, sec_admins, sec_danger = st.tabs(
+        ["New market", "Edit", "Settle", "Activity", "Admins", "Reset"]
     )
 
     # ----- Create ------------------------------------------------------------ #
@@ -823,6 +823,46 @@ def admin_tab(user: dict) -> None:
             if c2.button("Settle NO", width="stretch"):
                 mkt.resolve_market(labels[choice], "no")
                 refresh()
+
+    # ----- Activity ---------------------------------------------------------- #
+    with sec_activity:
+        all_markets = (cached_markets("open") or []) + (cached_markets("resolved") or [])
+        if not all_markets:
+            st.info("No markets yet.")
+        else:
+            market_labels = {m["question"]: m["id"] for m in all_markets}
+            chosen = st.selectbox(
+                "Select market", list(market_labels.keys()), key="activity_market"
+            )
+            mid = market_labels[chosen]
+
+            trades = mkt.recent_trades(market_id=mid, limit=200)
+            if not trades:
+                st.caption("No trades on this market yet.")
+            else:
+                df = pd.DataFrame(trades)
+                # Summary
+                vol = df["cost"].abs().sum()
+                n_traders = df["user"].nunique()
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Trades", str(len(df)))
+                c2.metric("Volume", f"{vol:,.0f}")
+                c3.metric("Traders", str(n_traders))
+
+                # Full trade tape
+                df["Time"] = pd.to_datetime(df["time"]).dt.strftime("%d %b %H:%M")
+                df["Side"] = df["side"].str.upper()
+                df["Shares"] = df["shares"].round(0)
+                df["Stake"] = df["cost"].round(1)
+                df["Mark"] = (df["prob_after"] * 100).round(0).astype(int).astype(str) + "%"
+                st.dataframe(
+                    df.rename(columns={"user": "Trader", "action": "Action"})[
+                        ["Time", "Trader", "Action", "Side", "Shares", "Stake", "Mark"]
+                    ],
+                    hide_index=True,
+                    width="stretch",
+                    height=400,
+                )
 
     # ----- Admins ------------------------------------------------------------ #
     with sec_admins:
