@@ -456,63 +456,99 @@ def leaderboard_tab(current_user: dict) -> None:
 # History tab
 # --------------------------------------------------------------------------- #
 def history_tab(user: dict) -> None:
-    history = mkt.get_history(user["id"])
-    if not history:
+    resolved = cached_markets("resolved")
+    if not resolved:
         st.info("No settled markets yet. Once an admin resolves a market, your results appear here.")
         return
 
-    total_pnl = sum(h["pnl"] for h in history)
-    wins = sum(1 for h in history if h["pnl"] > 0)
-    losses = sum(1 for h in history if h["pnl"] < 0)
+    # Get this user's history (only markets they traded in)
+    history = mkt.get_history(user["id"])
+    traded = {h["market_id"]: h for h in history}
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Realised P&L", f"{total_pnl:+,.0f}")
-    c2.metric("Wins", str(wins))
-    c3.metric("Losses", str(losses))
+    # Summary metrics (only for markets the user participated in)
+    if traded:
+        total_pnl = sum(h["pnl"] for h in history)
+        wins = sum(1 for h in history if h["pnl"] > 0)
+        losses = sum(1 for h in history if h["pnl"] < 0)
+        hit_rate = wins / max(1, wins + losses) * 100
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Realised P&L", f"{total_pnl:+,.0f}")
+        c2.metric("Wins", str(wins))
+        c3.metric("Losses", str(losses))
+        c4.metric("Hit rate", f"{hit_rate:.0f}%")
 
     st.markdown("#### Settled markets")
-    for h in history:
-        outcome_cls = "pos" if h["outcome"] == "YES" else "neg"
-        your_result = "pos" if h["pnl"] >= 0 else "neg"
-        your_sign = "+" if h["pnl"] >= 0 else "−"
+    for m in resolved:
+        h = traded.get(m["id"])
+        outcome = (m["outcome"] or "").upper()
+        outcome_pill = "pill-yes" if outcome == "YES" else "pill-no"
 
-        st.markdown(
-            f"<div style='display:flex;justify-content:space-between;align-items:center;"
-            f"padding:.5rem 0;border-bottom:1px solid #30363d'>"
-            f"<div>"
-            f"<b>{h['question']}</b><br>"
-            f"<span class='muted'>Outcome:</span> <span class='{outcome_cls}'>{h['outcome']}</span>"
-            f" &nbsp;·&nbsp; <span class='muted'>Your side:</span> {h['side']}"
-            f" &nbsp;·&nbsp; <span class='muted'>Shares held:</span> <span class='mono'>{h['shares_at_settle']:,.0f}</span>"
-            f"</div>"
-            f"<div style='text-align:right'>"
-            f"<span class='muted'>Cost</span> <span class='mono'>{h['cost']:,.0f}</span>"
-            f" &nbsp;·&nbsp; <span class='muted'>Payout</span> <span class='mono'>{h['payout']:,.0f}</span>"
-            f" &nbsp;·&nbsp; <span class='muted'>P&amp;L</span> "
-            f"<span class='{your_result}'>{your_sign}{abs(h['pnl']):,.0f}</span>"
-            f"</div></div>",
-            unsafe_allow_html=True,
-        )
+        if h:
+            # ---- Market the user traded in -------------------------------- #
+            won = h["pnl"] >= 0
+            result_cls = "pos" if won else "neg"
+            result_sign = "+" if won else "−"
+            # P&L bar — width proportional to |pnl| relative to cost (capped at 100%)
+            bar_pct = min(100, abs(h["pnl"]) / max(1, abs(h["cost"])) * 100)
+            bar_color = "#3fb950" if won else "#f85149"
 
-        # Expandable trade log for this market
-        with st.expander(f"Trade log"):
-            trades = mkt.recent_trades(market_id=h["market_id"], limit=50)
-            user_trades = [t for t in trades if t["user"] == user["username"]]
-            if user_trades:
-                df = pd.DataFrame(user_trades)
-                df["Side"] = df["side"].str.upper()
-                df["Shares"] = df["shares"].round(0)
-                df["Cost"] = df["cost"].round(1)
-                df["Mark after"] = (df["prob_after"] * 100).round(0).astype(int).astype(str) + "%"
-                st.dataframe(
-                    df.rename(columns={"action": "Action"})[
-                        ["Action", "Side", "Shares", "Cost", "Mark after"]
-                    ],
-                    hide_index=True,
-                    width="stretch",
-                )
-            else:
-                st.caption("No trades found.")
+            st.markdown(
+                f"""<div class='market-card'>
+  <div style='display:flex;justify-content:space-between;align-items:flex-start'>
+    <div>
+      <span class='tkr'>{m['question']}</span>
+      <div style='margin-top:.4rem'>
+        <span class='pill {outcome_pill}'>{outcome}</span>
+        &nbsp;
+        <span class='{result_cls}' style='font-size:.95rem'>{result_sign}{abs(h['pnl']):,.0f} P&amp;L</span>
+      </div>
+    </div>
+    <div style='text-align:right'>
+      <div class='muted' style='font-size:.78rem'>Your side: {h['side']}</div>
+      <div class='muted' style='font-size:.78rem'>Shares: {h['shares_at_settle']:,.0f}</div>
+      <div class='muted' style='font-size:.78rem'>Cost: {h['cost']:,.0f} → Payout: {h['payout']:,.0f}</div>
+    </div>
+  </div>
+  <div style='margin-top:.6rem;background:#21262d;border-radius:4px;height:6px;overflow:hidden'>
+    <div style='background:{bar_color};height:100%;width:{bar_pct:.0f}%;border-radius:4px'></div>
+  </div>
+</div>""",
+                unsafe_allow_html=True,
+            )
+
+            with st.expander("Trade log"):
+                trades = mkt.recent_trades(market_id=m["id"], limit=50)
+                user_trades = [t for t in trades if t["user"] == user["username"]]
+                if user_trades:
+                    df = pd.DataFrame(user_trades)
+                    df["Side"] = df["side"].str.upper()
+                    df["Shares"] = df["shares"].round(0)
+                    df["Cost"] = df["cost"].round(1)
+                    df["Mark after"] = (df["prob_after"] * 100).round(0).astype(int).astype(str) + "%"
+                    st.dataframe(
+                        df.rename(columns={"action": "Action"})[
+                            ["Action", "Side", "Shares", "Cost", "Mark after"]
+                        ],
+                        hide_index=True,
+                        width="stretch",
+                    )
+                else:
+                    st.caption("No trades found.")
+
+        else:
+            # ---- Market the user did NOT trade in (greyed out) ------------ #
+            desc = f" — {m['description']}" if m.get("description") else ""
+            st.markdown(
+                f"""<div class='market-card market-closed'>
+  <div style='display:flex;justify-content:space-between;align-items:center'>
+    <span class='tkr'>{m['question']}</span>
+    <span class='pill {outcome_pill}'>{outcome}</span>
+  </div>
+  <div class='muted' style='font-size:.82rem;margin-top:.3rem'>You did not trade in this market.{desc}</div>
+</div>""",
+                unsafe_allow_html=True,
+            )
 
 
 # --------------------------------------------------------------------------- #
