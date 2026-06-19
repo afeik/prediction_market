@@ -248,10 +248,12 @@ def markets_tab(user: dict, cash: float, positions: dict) -> None:
                         f"<div class='muted' style='font-size:.72rem;margin-top:3px'>"
                         f"Expires {fmt_zurich(m['close_at'])}</div>"
                     )
+                if p >= 0.5:
+                    pill = f"<span class='pill pill-yes'>YES {p*100:.0f}%</span>"
+                else:
+                    pill = f"<span class='pill pill-no'>NO {(1-p)*100:.0f}%</span>"
                 st.markdown(
-                    f"<div style='text-align:right'>"
-                    f"<span class='pill pill-yes'>YES {p*100:.0f}%</span>"
-                    f"{extras}</div>",
+                    f"<div style='text-align:right'>{pill}{extras}</div>",
                     unsafe_allow_html=True,
                 )
             st.progress(p, text=f"YES {p*100:.1f}%  ·  NO {(1-p)*100:.1f}%")
