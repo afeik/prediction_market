@@ -256,7 +256,19 @@ def markets_tab(user: dict, cash: float, positions: dict) -> None:
                     f"<div style='text-align:right'>{pill}{extras}</div>",
                     unsafe_allow_html=True,
                 )
-            st.progress(p, text=f"YES {p*100:.1f}%  ·  NO {(1-p)*100:.1f}%")
+            yes_pct = p * 100
+            no_pct = (1 - p) * 100
+            st.markdown(
+                f"<div style='display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:600'>"
+                f"<span style='color:#3fb950'>{yes_pct:.0f}%</span>"
+                f"<div style='flex:1;display:flex;border-radius:6px;overflow:hidden;height:10px'>"
+                f"<div style='background:#3fb950;width:{yes_pct:.1f}%'></div>"
+                f"<div style='background:#f85149;width:{no_pct:.1f}%'></div>"
+                f"</div>"
+                f"<span style='color:#f85149'>{no_pct:.0f}%</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
             # ---- Collapsible trade / position panel ---- #
             with st.expander("Trade / Position"):
@@ -377,9 +389,13 @@ def markets_tab(user: dict, cash: float, positions: dict) -> None:
     <span class='pill pill-closed'>Trading closed</span>
   </div>
   {desc}
-  <div style='color:#7d8590;font-size:.85rem;margin:.45rem 0 .2rem'>YES {p*100:.1f}% · NO {(1-p)*100:.1f}%</div>
-  <div style='background:#30363d;border-radius:6px;height:8px;overflow:hidden'>
-    <div style='background:#3fb950;height:100%;width:{p*100:.1f}%'></div>
+  <div style='display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:600;margin:.45rem 0 .2rem'>
+    <span style='color:#3fb950'>{p*100:.0f}%</span>
+    <div style='flex:1;display:flex;border-radius:6px;overflow:hidden;height:8px'>
+      <div style='background:#3fb950;width:{p*100:.1f}%'></div>
+      <div style='background:#f85149;width:{(1-p)*100:.1f}%'></div>
+    </div>
+    <span style='color:#f85149'>{(1-p)*100:.0f}%</span>
   </div>
   {posline}
   <div class='muted' style='margin-top:.55rem;font-size:.85rem'>{closed_line}</div>
