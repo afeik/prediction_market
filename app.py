@@ -551,8 +551,8 @@ def history_tab(user: dict) -> None:
                 d1, d2, d3, d4 = st.columns(4)
                 d1.metric("Side", h["side"])
                 d2.metric("Shares", f"{h['shares_at_settle']:,.0f}")
-                d3.metric("Cost", f"{h['cost']:,.0f}")
-                d4.metric("Payout", f"{h['payout']:,.0f}")
+                d3.metric("Payout", f"{h['payout']:,.0f}")
+                d4.metric("Realised P&L", f"{h['pnl']:+,.0f}")
 
                 trades = mkt.recent_trades(market_id=m["id"], limit=50)
                 user_trades = [t for t in trades if t["user"] == user["username"]]
