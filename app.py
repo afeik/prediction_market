@@ -261,7 +261,7 @@ def markets_tab(user: dict, cash: float, positions: dict) -> None:
             st.markdown(
                 f"<div style='display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:600'>"
                 f"<span style='color:#3fb950'>{yes_pct:.0f}%</span>"
-                f"<div style='flex:1;display:flex;border-radius:6px;overflow:hidden;height:5px'>"
+                f"<div style='flex:1;display:flex;border-radius:6px;overflow:hidden;height:3px'>"
                 f"<div style='background:#3fb950;width:{yes_pct:.1f}%'></div>"
                 f"<div style='background:#e5534b;width:{no_pct:.1f}%'></div>"
                 f"</div>"
@@ -391,7 +391,7 @@ def markets_tab(user: dict, cash: float, positions: dict) -> None:
   {desc}
   <div style='display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:600;margin:.45rem 0 .2rem'>
     <span style='color:#3fb950'>{p*100:.0f}%</span>
-    <div style='flex:1;display:flex;border-radius:6px;overflow:hidden;height:5px'>
+    <div style='flex:1;display:flex;border-radius:6px;overflow:hidden;height:3px'>
       <div style='background:#3fb950;width:{p*100:.1f}%'></div>
       <div style='background:#e5534b;width:{(1-p)*100:.1f}%'></div>
     </div>
