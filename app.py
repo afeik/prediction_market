@@ -54,7 +54,7 @@ st.set_page_config(
 # Bootstrap & caching (keeps reruns snappy against remote Postgres)
 # --------------------------------------------------------------------------- #
 @st.cache_resource
-def _bootstrap() -> bool:
+def _bootstrap(_v: int = 2) -> bool:
     init_db()
     return True
 
