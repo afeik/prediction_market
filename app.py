@@ -98,13 +98,13 @@ def inject_css() -> None:
         .pill {display:inline-block; padding:3px 11px; border-radius:6px;
             font-weight:600; font-size:.82rem; font-variant-numeric: tabular-nums; letter-spacing:.02em;}
         .pill-yes {background:rgba(63,185,80,.12); color:#3fb950; border:1px solid rgba(63,185,80,.35);}
-        .pill-no  {background:rgba(248,81,73,.12); color:#f85149; border:1px solid rgba(248,81,73,.35);}
+        .pill-no  {background:rgba(229,83,75,.12); color:#e5534b; border:1px solid rgba(229,83,75,.35);}
         .pill-closed {background:rgba(125,134,144,.12); color:#7d8590;
             border:1px solid rgba(125,134,144,.35);}
         .tkr {font-size:1.02rem; font-weight:600; letter-spacing:.01em; color:#e6edf3;}
         .muted {color:#7d8590;}
         .pos {color:#3fb950; font-variant-numeric: tabular-nums; font-weight:600;}
-        .neg {color:#f85149; font-variant-numeric: tabular-nums; font-weight:600;}
+        .neg {color:#e5534b; font-variant-numeric: tabular-nums; font-weight:600;}
         .mono {font-variant-numeric: tabular-nums;}
         .market-card {border:1px solid #30363d; border-radius:.6rem;
             padding:1rem 1.15rem; margin-bottom:.75rem; background:#161b22;}
@@ -263,9 +263,9 @@ def markets_tab(user: dict, cash: float, positions: dict) -> None:
                 f"<span style='color:#3fb950'>{yes_pct:.0f}%</span>"
                 f"<div style='flex:1;display:flex;border-radius:6px;overflow:hidden;height:10px'>"
                 f"<div style='background:#3fb950;width:{yes_pct:.1f}%'></div>"
-                f"<div style='background:#f85149;width:{no_pct:.1f}%'></div>"
+                f"<div style='background:#e5534b;width:{no_pct:.1f}%'></div>"
                 f"</div>"
-                f"<span style='color:#f85149'>{no_pct:.0f}%</span>"
+                f"<span style='color:#e5534b'>{no_pct:.0f}%</span>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
@@ -393,9 +393,9 @@ def markets_tab(user: dict, cash: float, positions: dict) -> None:
     <span style='color:#3fb950'>{p*100:.0f}%</span>
     <div style='flex:1;display:flex;border-radius:6px;overflow:hidden;height:8px'>
       <div style='background:#3fb950;width:{p*100:.1f}%'></div>
-      <div style='background:#f85149;width:{(1-p)*100:.1f}%'></div>
+      <div style='background:#e5534b;width:{(1-p)*100:.1f}%'></div>
     </div>
-    <span style='color:#f85149'>{(1-p)*100:.0f}%</span>
+    <span style='color:#e5534b'>{(1-p)*100:.0f}%</span>
   </div>
   {posline}
   <div class='muted' style='margin-top:.55rem;font-size:.85rem'>{closed_line}</div>
@@ -521,7 +521,7 @@ def history_tab(user: dict) -> None:
             result_sign = "+" if won else "−"
             # P&L bar — width proportional to |pnl| relative to cost (capped at 100%)
             bar_pct = min(100, abs(h["pnl"]) / max(1, abs(h["cost"])) * 100)
-            bar_color = "#3fb950" if won else "#f85149"
+            bar_color = "#3fb950" if won else "#e5534b"
 
             st.markdown(
                 f"""<div class='market-card'>
