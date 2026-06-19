@@ -377,6 +377,9 @@ def get_history(user_id: int) -> list[dict]:
             )
         out.sort(key=lambda r: r["created_at"], reverse=True)
         return out
+
+
+def leaderboard() -> list[dict]:
     """Equity = cash + mark-to-market value of open positions."""
     with SessionLocal() as s:
         users = s.scalars(select(User)).all()
