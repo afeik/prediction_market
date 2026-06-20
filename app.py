@@ -54,7 +54,7 @@ st.set_page_config(
 # Bootstrap & caching (keeps reruns snappy against remote Postgres)
 # --------------------------------------------------------------------------- #
 @st.cache_resource
-def _bootstrap(_v: int = 2) -> bool:
+def _bootstrap(_v: int = 3) -> bool:
     init_db()
     return True
 
@@ -228,6 +228,13 @@ def markets_tab(user: dict, cash: float, positions: dict) -> None:
     if not open_markets:
         st.info("No markets are open. An administrator can create one in the Admin tab.")
         return
+
+    # Category filter
+    categories = sorted({m.get("category", "Other") for m in open_markets})
+    if len(categories) > 1:
+        selected = st.pills("Filter", ["All"] + categories, default="All", key="cat_filter")
+        if selected and selected != "All":
+            open_markets = [m for m in open_markets if m.get("category", "Other") == selected]
 
     live = [m for m in open_markets if m["trading_open"]]
     closed = [m for m in open_markets if not m["trading_open"]]
@@ -851,6 +858,7 @@ def admin_tab(user: dict) -> None:
                 "Settlement / resolution criteria",
                 placeholder="Result after 90 minutes + stoppage time. Extra time excluded.",
             )
+            category = st.selectbox("Category", mkt.CATEGORIES)
             init_prob = st.slider(
                 "Starting probability (YES %)",
                 1, 99, 50, step=1,
@@ -886,6 +894,7 @@ def admin_tab(user: dict) -> None:
                         mkt.create_market(
                             question, description, float(b),
                             close_at=close_at, initial_prob=init_prob / 100,
+                            category=category,
                         )
                         refresh()
                     except ValueError as exc:
@@ -909,6 +918,12 @@ def admin_tab(user: dict) -> None:
                 new_desc = st.text_area(
                     "Description / resolution criteria",
                     value=em["description"],
+                )
+                new_category = st.selectbox(
+                    "Category",
+                    mkt.CATEGORIES,
+                    index=mkt.CATEGORIES.index(em.get("category", "Other")),
+                    key="edit_cat",
                 )
 
                 st.markdown("**Deadline**")
@@ -959,6 +974,7 @@ def admin_tab(user: dict) -> None:
                                 em["id"],
                                 question=new_question,
                                 description=new_desc,
+                                category=new_category,
                                 b=float(new_b),
                                 close_at=close_at_val,
                             )

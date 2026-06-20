@@ -22,6 +22,7 @@ from db import Market, Position, Proposal, SessionLocal, Trade, User, init_db
 
 STARTING_BALANCE = 1000.0
 DEFAULT_LIQUIDITY = 100.0
+CATEGORIES = ["Sports", "Commodities", "Politics", "Tech", "Entertainment", "Other"]
 
 
 # --------------------------------------------------------------------------- #
@@ -97,6 +98,7 @@ def create_market(
     b: float = DEFAULT_LIQUIDITY,
     close_at: datetime | None = None,
     initial_prob: float = 0.5,
+    category: str = "Other",
 ) -> int:
     question = question.strip()
     if not question:
@@ -115,6 +117,7 @@ def create_market(
         m = Market(
             question=question,
             description=description.strip(),
+            category=category,
             b=b,
             q_yes=q_yes,
             q_no=q_no,
@@ -129,16 +132,11 @@ def update_market(
     market_id: int,
     question: str | None = None,
     description: str | None = None,
+    category: str | None = None,
     b: float | None = None,
     close_at: datetime | None = ...,  # sentinel: ... means 'don't change'
 ) -> None:
-    """Edit parameters of an open market.
-
-    - question: new market question (or None to keep current)
-    - description: new resolution text (or None to keep current)
-    - b: new liquidity (changes mark price if trades exist)
-    - close_at: new deadline, None to remove, or ... to leave unchanged
-    """
+    """Edit parameters of an open market."""
     with SessionLocal() as s:
         m = s.get(Market, market_id, with_for_update=True)
         if m is None or m.status != "open":
@@ -150,6 +148,8 @@ def update_market(
             m.question = q
         if description is not None:
             m.description = description.strip()
+        if category is not None:
+            m.category = category
         if b is not None:
             if b < 10:
                 raise ValueError("Liquidity b must be at least 10")
@@ -181,6 +181,7 @@ def list_markets(status: str | None = None) -> list[dict]:
                     "id": m.id,
                     "question": m.question,
                     "description": m.description,
+                    "category": m.category or "Other",
                     "b": m.b,
                     "q_yes": m.q_yes,
                     "q_no": m.q_no,

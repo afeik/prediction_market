@@ -87,6 +87,7 @@ class Market(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     question: Mapped[str] = mapped_column(String(300))
     description: Mapped[str] = mapped_column(String(1000), default="")
+    category: Mapped[str] = mapped_column(String(50), default="Other")
     b: Mapped[float] = mapped_column(Float, default=100.0)
     q_yes: Mapped[float] = mapped_column(Float, default=0.0)
     q_no: Mapped[float] = mapped_column(Float, default=0.0)
