@@ -134,8 +134,18 @@ class Proposal(Base):
 
 
 def init_db() -> None:
-    """Create all tables if they do not exist yet."""
+    """Create all tables if they do not exist yet, and add any missing columns."""
     Base.metadata.create_all(engine)
+    # Lightweight migration: add columns introduced after initial deployment.
+    from sqlalchemy import inspect, text
+    insp = inspect(engine)
+    if "markets" in insp.get_table_names():
+        cols = {c["name"] for c in insp.get_columns("markets")}
+        if "category" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "ALTER TABLE markets ADD COLUMN category VARCHAR(50) DEFAULT 'Other'"
+                ))
 
 
 def reset_db() -> None:
