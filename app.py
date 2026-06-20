@@ -62,22 +62,22 @@ def _bootstrap(_v: int = 3) -> bool:
 _bootstrap()
 
 
-@st.cache_data(ttl=5, show_spinner=False)
+@st.cache_data(ttl=2, show_spinner=False)
 def cached_markets(status: str | None = "open"):
     return mkt.list_markets(status)
 
 
-@st.cache_data(ttl=5, show_spinner=False)
+@st.cache_data(ttl=2, show_spinner=False)
 def cached_leaderboard():
     return mkt.leaderboard()
 
 
-@st.cache_data(ttl=5, show_spinner=False)
+@st.cache_data(ttl=2, show_spinner=False)
 def cached_trades(market_id: int, limit: int = 8):
     return mkt.recent_trades(market_id, limit)
 
 
-@st.cache_data(ttl=5, show_spinner=False)
+@st.cache_data(ttl=2, show_spinner=False)
 def cached_proposals(status: str | None = None):
     return mkt.list_proposals(status)
 
@@ -910,7 +910,7 @@ def admin_tab(user: dict) -> None:
             chosen_q = st.selectbox("Market to edit", list(edit_labels.keys()), key="edit_sel")
             em = edit_labels[chosen_q]
 
-            with st.form("edit_market"):
+            with st.form(f"edit_market_{em['id']}"):
                 new_question = st.text_input(
                     "Market question",
                     value=em["question"],
@@ -923,7 +923,6 @@ def admin_tab(user: dict) -> None:
                     "Category",
                     mkt.CATEGORIES,
                     index=mkt.CATEGORIES.index(em.get("category", "Other")),
-                    key="edit_cat",
                 )
 
                 st.markdown("**Deadline**")
@@ -937,19 +936,17 @@ def admin_tab(user: dict) -> None:
                 edit_date = edl1.date_input(
                     "Close date (Zurich)",
                     value=current_close_z.date() if current_close_z else (now_z + timedelta(days=1)).date(),
-                    key="edit_date",
                 )
                 edit_time = edl2.time_input(
                     "Close time (Zurich)",
                     value=current_close_z.time() if current_close_z else time(20, 0),
                     step=timedelta(minutes=1),
-                    key="edit_time",
                 )
 
                 st.markdown("**Liquidity**")
                 new_b = st.slider(
                     "b (higher = deeper book)",
-                    20, 400, int(em["b"]), step=10, key="edit_b",
+                    20, 400, int(em["b"]), step=10,
                 )
                 if em["q_yes"] != 0 or em["q_no"] != 0:
                     st.caption(
