@@ -239,6 +239,9 @@ def markets_tab(user: dict, cash: float, positions: dict) -> None:
     live = [m for m in open_markets if m["trading_open"]]
     closed = [m for m in open_markets if not m["trading_open"]]
 
+    # Sort: expiring soonest first, then markets with no deadline
+    live.sort(key=lambda m: (m["close_at"] is None, m["close_at"] or datetime.max))
+
     for m in live:
         p = m["prob_yes"]
         pos = positions.get(m["id"])
