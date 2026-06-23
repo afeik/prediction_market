@@ -89,7 +89,7 @@ def refresh() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Styling — sleek dark "trading terminal" look
+# Styling — professional dark fintech theme
 # --------------------------------------------------------------------------- #
 def inject_css() -> None:
     st.markdown(
@@ -98,23 +98,23 @@ def inject_css() -> None:
         .block-container {padding-top: 2.0rem; max-width: 1160px;}
         [data-testid="stMetricValue"] {font-variant-numeric: tabular-nums; font-weight: 600;
             letter-spacing:.01em;}
-        [data-testid="stMetricLabel"] {color: #7d8590; text-transform: uppercase;
+        [data-testid="stMetricLabel"] {color: #8896ab; text-transform: uppercase;
             letter-spacing: .06em; font-size: .7rem; font-weight: 600;}
         .pill {display:inline-block; padding:3px 11px; border-radius:6px;
             font-weight:600; font-size:.82rem; font-variant-numeric: tabular-nums; letter-spacing:.02em;}
-        .pill-yes {background:rgba(63,185,80,.12); color:#3fb950; border:1px solid rgba(63,185,80,.35);}
-        .pill-no  {background:rgba(229,83,75,.12); color:#e5534b; border:1px solid rgba(229,83,75,.35);}
-        .pill-closed {background:rgba(125,134,144,.12); color:#7d8590;
-            border:1px solid rgba(125,134,144,.35);}
-        .tkr {font-size:1.02rem; font-weight:600; letter-spacing:.01em; color:#e6edf3;}
-        .muted {color:#7d8590;}
-        .pos {color:#3fb950; font-variant-numeric: tabular-nums; font-weight:600;}
-        .neg {color:#e5534b; font-variant-numeric: tabular-nums; font-weight:600;}
+        .pill-yes {background:rgba(52,211,153,.10); color:#34d399; border:1px solid rgba(52,211,153,.30);}
+        .pill-no  {background:rgba(248,113,113,.10); color:#f87171; border:1px solid rgba(248,113,113,.30);}
+        .pill-closed {background:rgba(136,150,171,.10); color:#8896ab;
+            border:1px solid rgba(136,150,171,.30);}
+        .tkr {font-size:1.02rem; font-weight:600; letter-spacing:.01em; color:#e2e8f0;}
+        .muted {color:#8896ab;}
+        .pos {color:#34d399; font-variant-numeric: tabular-nums; font-weight:600;}
+        .neg {color:#f87171; font-variant-numeric: tabular-nums; font-weight:600;}
         .mono {font-variant-numeric: tabular-nums;}
-        .market-card {border:1px solid #30363d; border-radius:.6rem;
-            padding:1rem 1.15rem; margin-bottom:.75rem; background:#161b22;}
+        .market-card {border:1px solid #2a3544; border-radius:.6rem;
+            padding:1rem 1.15rem; margin-bottom:.75rem; background:#1a2332;}
         .market-closed {opacity:.55;}
-        hr {margin: .8rem 0; border-color: #30363d;}
+        hr {margin: .8rem 0; border-color: #2a3544;}
         </style>
         """,
         unsafe_allow_html=True,
@@ -212,7 +212,7 @@ def sidebar(user: dict, equity: float, cash: float) -> None:
             st.session_state.user = None
             refresh()
         st.markdown(
-            "<div style='position:fixed;bottom:1rem;left:1rem;font-size:.7rem;color:#7d8590'>"
+            "<div style='position:fixed;bottom:1rem;left:1rem;font-size:.7rem;color:#8896ab'>"
             "Created by Andreas Feik</div>",
             unsafe_allow_html=True,
         )
@@ -284,12 +284,12 @@ def markets_tab(user: dict, cash: float, positions: dict) -> None:
             no_pct = (1 - p) * 100
             st.markdown(
                 f"<div style='display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:600'>"
-                f"<span style='color:#3fb950'>{yes_pct:.0f}%</span>"
+                f"<span style='color:#34d399'>{yes_pct:.0f}%</span>"
                 f"<div style='flex:1;display:flex;border-radius:6px;overflow:hidden;height:3px'>"
-                f"<div style='background:#3fb950;width:{yes_pct:.1f}%'></div>"
-                f"<div style='background:#e5534b;width:{no_pct:.1f}%'></div>"
+                f"<div style='background:#34d399;width:{yes_pct:.1f}%'></div>"
+                f"<div style='background:#f87171;width:{no_pct:.1f}%'></div>"
                 f"</div>"
-                f"<span style='color:#e5534b'>{no_pct:.0f}%</span>"
+                f"<span style='color:#f87171'>{no_pct:.0f}%</span>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
@@ -414,12 +414,12 @@ def markets_tab(user: dict, cash: float, positions: dict) -> None:
   </div>
   {desc}
   <div style='display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:600;margin:.45rem 0 .2rem'>
-    <span style='color:#3fb950'>{p*100:.0f}%</span>
+    <span style='color:#34d399'>{p*100:.0f}%</span>
     <div style='flex:1;display:flex;border-radius:6px;overflow:hidden;height:3px'>
-      <div style='background:#3fb950;width:{p*100:.1f}%'></div>
-      <div style='background:#e5534b;width:{(1-p)*100:.1f}%'></div>
+      <div style='background:#34d399;width:{p*100:.1f}%'></div>
+      <div style='background:#f87171;width:{(1-p)*100:.1f}%'></div>
     </div>
-    <span style='color:#e5534b'>{(1-p)*100:.0f}%</span>
+    <span style='color:#f87171'>{(1-p)*100:.0f}%</span>
   </div>
   {posline}
   <div class='muted' style='margin-top:.55rem;font-size:.85rem'>{closed_line}</div>
@@ -465,7 +465,7 @@ def portfolio_tab(cash: float, positions_list: list) -> None:
         )
         st.markdown(
             f"<div style='display:flex;justify-content:space-between;align-items:center;"
-            f"padding:.35rem 0;border-bottom:1px solid #30363d'>"
+            f"padding:.35rem 0;border-bottom:1px solid #2a3544'>"
             f"<span>{sides_html} &nbsp;<b>{p['question']}</b></span>"
             f"<span class='muted'>cost <b class='mono'>{p['invested']:,.0f}</b> · "
             f"value <b class='mono'>{p['value']:,.0f}</b> · "
@@ -545,7 +545,7 @@ def history_tab(user: dict) -> None:
             result_sign = "+" if won else "−"
             # P&L bar — width proportional to |pnl| relative to cost (capped at 100%)
             bar_pct = min(100, abs(h["pnl"]) / max(1, abs(h["cost"])) * 100)
-            bar_color = "#3fb950" if won else "#e5534b"
+            bar_color = "#34d399" if won else "#f87171"
 
             st.markdown(
                 f"""<div class='market-card'>
@@ -564,7 +564,7 @@ def history_tab(user: dict) -> None:
       <div class='muted' style='font-size:.78rem'>Cost: {h['cost']:,.0f} → Payout: {h['payout']:,.0f}</div>
     </div>
   </div>
-  <div style='margin-top:.6rem;background:#21262d;border-radius:6px;height:3px;overflow:hidden'>
+  <div style='margin-top:.6rem;background:#1f2937;border-radius:6px;height:3px;overflow:hidden'>
     <div style='background:{bar_color};height:100%;width:{bar_pct:.0f}%'></div>
   </div>
 </div>""",
@@ -837,7 +837,7 @@ def propose_tab(user: dict) -> None:
                 "rejected": "❌ Rejected",
             }.get(p["status"], p["status"])
             st.markdown(
-                f"<div style='padding:.4rem 0;border-bottom:1px solid #30363d'>"
+                f"<div style='padding:.4rem 0;border-bottom:1px solid #2a3544'>"
                 f"<span class='tkr'>{p['question']}</span>"
                 f"<span class='muted' style='float:right'>{status_pill}</span>"
                 f"</div>",
@@ -1117,7 +1117,7 @@ def admin_tab(user: dict) -> None:
                 status_note = "(realised)" if breakdown["status"] == "resolved" else "(mark-to-market)"
                 st.markdown(
                     f"<div style='margin-top:.6rem;padding:.5rem .7rem;"
-                    f"background:#21262d;border-radius:6px;display:flex;"
+                    f"background:#1f2937;border-radius:6px;display:flex;"
                     f"justify-content:space-between;align-items:center'>"
                     f"<span class='muted'>Market maker P&amp;L {status_note}</span>"
                     f"<span class='{maker_cls}' style='font-size:1.05rem'>"
