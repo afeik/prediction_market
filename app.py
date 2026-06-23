@@ -325,7 +325,7 @@ def markets_tab(user: dict, cash: float, positions: dict) -> None:
                         f"<span class='pill pill-no'>NO</span> &nbsp;payout "
                         f"<b class='mono'>{no_payout:,.0f}</b> "
                         f"<span class='muted'>· avg {amount/no_payout*100:.0f}¢ · mark "
-                        f"{p*100:.0f}→{(1-p_no_after)*100:.0f}%</span>",
+                        f"{(1-p)*100:.0f}→{(1-p_no_after)*100:.0f}%</span>",
                         unsafe_allow_html=True,
                     )
 
