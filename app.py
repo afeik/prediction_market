@@ -93,12 +93,10 @@ def refresh() -> None:
 # --------------------------------------------------------------------------- #
 def inject_css() -> None:
     st.markdown(
-        '<link href="https://fonts.googleapis.com/css2?family=Monoton&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
         """
         <style>
+        @import url('https://fonts.googleapis.com/css2?family=Monoton&family=Inter:wght@400;500;600;700&display=swap');
+
         .block-container {padding-top: 1.6rem; max-width: 1160px;}
         [data-testid="stMetricValue"] {font-family:'Inter',sans-serif; font-variant-numeric: tabular-nums;
             font-weight: 700; letter-spacing:-.01em; font-size:1.3rem;}
@@ -202,8 +200,7 @@ if "user" not in st.session_state:
 def auth_screen() -> None:
     inject_css()
     st.markdown("<h1 class='app-title'>La Repubblica dei Pronostici</h1>", unsafe_allow_html=True)
-    st.markdown("<div class='app-subtitle'>Play-money prediction market</div>", unsafe_allow_html=True)
-    st.caption("Trade YES / NO contracts on anything — no real cash at stake.")
+    st.markdown("<div class='app-subtitle'>Play-money prediction market · Trade YES / NO contracts on anything</div>", unsafe_allow_html=True)
 
     first_user = mkt.user_count() == 0
     if first_user:
