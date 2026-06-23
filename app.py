@@ -17,6 +17,7 @@ import streamlit as st
 
 import market as mkt
 import pricing
+import font_data
 from db import init_db
 
 # Scheduling/display timezone. We persist UTC in the database and present
@@ -95,8 +96,13 @@ def inject_css() -> None:
     st.markdown(
         """
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Monoton&family=Inter:wght@400;500;600;700&display=swap');
-
+        @font-face {
+            font-family: 'Orbitron';
+            font-style: normal;
+            font-weight: 700;
+            font-display: swap;
+            src: url(data:font/woff2;base64,""" + font_data.FONT_B64 + """) format('woff2');
+        }
         .block-container {padding-top: 1.6rem; max-width: 1160px;}
         [data-testid="stMetricValue"] {font-family:'Inter',sans-serif; font-variant-numeric: tabular-nums;
             font-weight: 700; letter-spacing:-.01em; font-size:1.3rem;}
@@ -104,8 +110,8 @@ def inject_css() -> None:
             text-transform: uppercase; letter-spacing: .08em; font-size: .65rem; font-weight: 600;}
         [data-testid="stMetricDelta"] {font-family:'Inter',sans-serif;}
 
-        .app-title {font-family:'Monoton',cursive; font-size:2.4rem;
-            margin:0 0 .15rem 0; letter-spacing:.03em;
+        .app-title {font-family:'Orbitron',sans-serif !important; font-size:2.0rem;
+            margin:0 0 .15rem 0; letter-spacing:.05em; font-weight:700;
             background: linear-gradient(90deg, #5b8def, #34d399, #a78bfa, #f87171, #5b8def);
             background-size: 300% 100%;
             -webkit-background-clip: text;
