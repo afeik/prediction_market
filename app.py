@@ -95,26 +95,52 @@ def inject_css() -> None:
     st.markdown(
         """
         <style>
-        .block-container {padding-top: 2.0rem; max-width: 1160px;}
-        [data-testid="stMetricValue"] {font-variant-numeric: tabular-nums; font-weight: 600;
-            letter-spacing:.01em;}
-        [data-testid="stMetricLabel"] {color: #8896ab; text-transform: uppercase;
-            letter-spacing: .06em; font-size: .7rem; font-weight: 600;}
+        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap');
+
+        .block-container {padding-top: 1.6rem; max-width: 1160px;}
+        [data-testid="stMetricValue"] {font-family:'Inter',sans-serif; font-variant-numeric: tabular-nums;
+            font-weight: 700; letter-spacing:-.01em; font-size:1.3rem;}
+        [data-testid="stMetricLabel"] {font-family:'Inter',sans-serif; color: #8896ab;
+            text-transform: uppercase; letter-spacing: .08em; font-size: .65rem; font-weight: 600;}
+        [data-testid="stMetricDelta"] {font-family:'Inter',sans-serif;}
+
+        .app-title {font-family:'DM Serif Display',serif; font-size:1.9rem; color:#e2e8f0;
+            margin:0 0 .15rem 0; letter-spacing:-.01em;}
+        .app-subtitle {font-family:'Inter',sans-serif; font-size:.82rem; color:#5b8def;
+            font-weight:500; letter-spacing:.04em; text-transform:uppercase; margin-bottom:1.2rem;}
+
         .pill {display:inline-block; padding:3px 11px; border-radius:6px;
-            font-weight:600; font-size:.82rem; font-variant-numeric: tabular-nums; letter-spacing:.02em;}
+            font-family:'Inter',sans-serif; font-weight:600; font-size:.78rem;
+            font-variant-numeric: tabular-nums; letter-spacing:.02em;}
         .pill-yes {background:rgba(52,211,153,.10); color:#34d399; border:1px solid rgba(52,211,153,.30);}
         .pill-no  {background:rgba(248,113,113,.10); color:#f87171; border:1px solid rgba(248,113,113,.30);}
         .pill-closed {background:rgba(136,150,171,.10); color:#8896ab;
             border:1px solid rgba(136,150,171,.30);}
-        .tkr {font-size:1.02rem; font-weight:600; letter-spacing:.01em; color:#e2e8f0;}
-        .muted {color:#8896ab;}
+
+        .tkr {font-family:'Inter',sans-serif; font-size:1.0rem; font-weight:600;
+            letter-spacing:-.005em; color:#e2e8f0;}
+        .muted {color:#8896ab; font-family:'Inter',sans-serif;}
         .pos {color:#34d399; font-variant-numeric: tabular-nums; font-weight:600;}
         .neg {color:#f87171; font-variant-numeric: tabular-nums; font-weight:600;}
         .mono {font-variant-numeric: tabular-nums;}
-        .market-card {border:1px solid #2a3544; border-radius:.6rem;
-            padding:1rem 1.15rem; margin-bottom:.75rem; background:#1a2332;}
-        .market-closed {opacity:.55;}
+
+        .market-card {border:1px solid #2a3544; border-radius:.7rem;
+            padding:1.1rem 1.2rem; margin-bottom:.8rem; background:#1a2332;
+            box-shadow: 0 2px 8px rgba(0,0,0,.15);}
+        .market-closed {opacity:.5;}
         hr {margin: .8rem 0; border-color: #2a3544;}
+
+        /* Sidebar polish */
+        [data-testid="stSidebar"] {border-right: 1px solid #2a3544;}
+        [data-testid="stSidebar"] [data-testid="stMetricValue"] {font-size:1.1rem;}
+
+        /* Tab styling */
+        .stTabs [data-baseweb="tab-list"] {gap: 0; border-bottom: 1px solid #2a3544;}
+        .stTabs [data-baseweb="tab"] {font-family:'Inter',sans-serif; font-weight:500;
+            font-size:.85rem; letter-spacing:.01em; padding: .6rem 1.1rem;}
+
+        /* Form and expander refinements */
+        [data-testid="stExpander"] {border-color: #2a3544 !important; border-radius: .5rem;}
         </style>
         """,
         unsafe_allow_html=True,
@@ -161,8 +187,9 @@ if "user" not in st.session_state:
 # --------------------------------------------------------------------------- #
 def auth_screen() -> None:
     inject_css()
-    st.title("La Repubblica dei Pronostici")
-    st.caption("A play-money prediction market. Trade YES/NO contracts on anything — no real cash.")
+    st.markdown("<h1 class='app-title'>La Repubblica dei Pronostici</h1>", unsafe_allow_html=True)
+    st.markdown("<div class='app-subtitle'>Play-money prediction market</div>", unsafe_allow_html=True)
+    st.caption("Trade YES / NO contracts on anything — no real cash at stake.")
 
     first_user = mkt.user_count() == 0
     if first_user:
@@ -781,8 +808,8 @@ def main() -> None:
     )
 
     sidebar(user, equity, cash)
-    st.markdown("## La Repubblica dei Pronostici")
-    st.caption("Internal prediction market")
+    st.markdown("<h1 class='app-title'>La Repubblica dei Pronostici</h1>", unsafe_allow_html=True)
+    st.markdown("<div class='app-subtitle'>Internal prediction market</div>", unsafe_allow_html=True)
 
     tabs = ["Markets", "Portfolio", "History", "Leaderboard", "Propose", "FAQ"]
     if user["is_admin"]:
