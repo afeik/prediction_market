@@ -93,10 +93,12 @@ def refresh() -> None:
 # --------------------------------------------------------------------------- #
 def inject_css() -> None:
     st.markdown(
+        '<link href="https://fonts.googleapis.com/css2?family=Monoton&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
         """
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap');
-
         .block-container {padding-top: 1.6rem; max-width: 1160px;}
         [data-testid="stMetricValue"] {font-family:'Inter',sans-serif; font-variant-numeric: tabular-nums;
             font-weight: 700; letter-spacing:-.01em; font-size:1.3rem;}
@@ -104,8 +106,20 @@ def inject_css() -> None:
             text-transform: uppercase; letter-spacing: .08em; font-size: .65rem; font-weight: 600;}
         [data-testid="stMetricDelta"] {font-family:'Inter',sans-serif;}
 
-        .app-title {font-family:'Instrument Serif',serif; font-size:2.3rem; color:#e2e8f0;
-            margin:0 0 .1rem 0; letter-spacing:-.02em; font-style:italic;}
+        .app-title {font-family:'Monoton',cursive; font-size:2.4rem;
+            margin:0 0 .15rem 0; letter-spacing:.03em;
+            background: linear-gradient(90deg, #5b8def, #34d399, #a78bfa, #f87171, #5b8def);
+            background-size: 300% 100%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: title-shimmer 6s ease-in-out infinite;
+        }
+        @keyframes title-shimmer {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
         .app-subtitle {font-family:'Inter',sans-serif; font-size:.82rem; color:#5b8def;
             font-weight:500; letter-spacing:.04em; text-transform:uppercase; margin-bottom:1.2rem;}
 
