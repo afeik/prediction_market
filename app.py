@@ -95,7 +95,7 @@ def inject_css() -> None:
     st.markdown(
         """
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap');
 
         .block-container {padding-top: 1.6rem; max-width: 1160px;}
         [data-testid="stMetricValue"] {font-family:'Inter',sans-serif; font-variant-numeric: tabular-nums;
@@ -104,8 +104,8 @@ def inject_css() -> None:
             text-transform: uppercase; letter-spacing: .08em; font-size: .65rem; font-weight: 600;}
         [data-testid="stMetricDelta"] {font-family:'Inter',sans-serif;}
 
-        .app-title {font-family:'DM Serif Display',serif; font-size:1.9rem; color:#e2e8f0;
-            margin:0 0 .15rem 0; letter-spacing:-.01em;}
+        .app-title {font-family:'Instrument Serif',serif; font-size:2.3rem; color:#e2e8f0;
+            margin:0 0 .1rem 0; letter-spacing:-.02em; font-style:italic;}
         .app-subtitle {font-family:'Inter',sans-serif; font-size:.82rem; color:#5b8def;
             font-weight:500; letter-spacing:.04em; text-transform:uppercase; margin-bottom:1.2rem;}
 
