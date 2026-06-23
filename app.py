@@ -846,366 +846,405 @@ def propose_tab(user: dict) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Admin tab
+# Admin tab — each section is a fragment for fast partial reruns
 # --------------------------------------------------------------------------- #
 def admin_tab(user: dict) -> None:
     sec_new, sec_edit, sec_settle, sec_delete, sec_proposals, sec_activity, sec_admins, sec_danger = st.tabs(
         ["New market", "Edit", "Settle", "Delete", "Proposals", "Activity", "Admins", "Reset"]
     )
 
-    # ----- Create ------------------------------------------------------------ #
     with sec_new:
-        with st.form("create_market"):
-            question = st.text_input("Market question", placeholder="Will Italy beat Spain?")
-            description = st.text_area(
-                "Settlement / resolution criteria",
-                placeholder="Result after 90 minutes + stoppage time. Extra time excluded.",
-            )
-            category = st.selectbox("Category", mkt.CATEGORIES)
-            init_prob = st.slider(
-                "Starting probability (YES %)",
-                1, 99, 50, step=1,
-                help="Opening odds — e.g. 70 means the market starts at YES 70% / NO 30%.",
-            )
-            b = st.slider(
-                "Liquidity b (higher = deeper book, less slippage)",
-                20, 400, 100, step=10,
-            )
-            set_deadline = st.checkbox("Set a trading deadline")
-            now_z = datetime.now(ZURICH)
-            dl1, dl2 = st.columns(2)
-            close_date = dl1.date_input(
-                "Close date (Zurich)", value=(now_z + timedelta(days=1)).date()
-            )
-            close_time = dl2.time_input(
-                "Close time (Zurich)", value=time(20, 0), step=timedelta(minutes=1)
-            )
-            st.caption(
-                "Trading stops at this Zurich (CET/CEST) date & time. "
-                "Leave unchecked for a market with no deadline."
-            )
-            if st.form_submit_button("List market", type="primary"):
-                close_at = None
-                valid = True
-                if set_deadline:
-                    close_at = zurich_to_utc(datetime.combine(close_date, close_time))
-                    if close_at <= datetime.utcnow():
-                        st.error("That deadline is in the past (Zurich time).")
-                        valid = False
-                if valid:
-                    try:
-                        mkt.create_market(
-                            question, description, float(b),
-                            close_at=close_at, initial_prob=init_prob / 100,
-                            category=category,
-                        )
-                        refresh()
-                    except ValueError as exc:
-                        st.error(str(exc))
-
-    # ----- Edit -------------------------------------------------------------- #
+        _admin_create()
     with sec_edit:
-        open_markets = cached_markets("open")
-        if not open_markets:
-            st.info("No open markets to edit.")
-        else:
-            edit_labels = {m["question"]: m for m in open_markets}
-            chosen_q = st.selectbox("Market to edit", list(edit_labels.keys()), key="edit_sel")
-            em = edit_labels[chosen_q]
-
-            with st.form(f"edit_market_{em['id']}"):
-                new_question = st.text_input(
-                    "Market question",
-                    value=em["question"],
-                )
-                new_desc = st.text_area(
-                    "Description / resolution criteria",
-                    value=em["description"],
-                )
-                new_category = st.selectbox(
-                    "Category",
-                    mkt.CATEGORIES,
-                    index=mkt.CATEGORIES.index(em.get("category", "Other")),
-                )
-
-                st.markdown("**Deadline**")
-                has_deadline = st.checkbox(
-                    "Has a trading deadline",
-                    value=em["close_at"] is not None,
-                )
-                now_z = datetime.now(ZURICH)
-                current_close_z = to_zurich(em["close_at"]) if em["close_at"] else None
-                edl1, edl2 = st.columns(2)
-                edit_date = edl1.date_input(
-                    "Close date (Zurich)",
-                    value=current_close_z.date() if current_close_z else (now_z + timedelta(days=1)).date(),
-                )
-                edit_time = edl2.time_input(
-                    "Close time (Zurich)",
-                    value=current_close_z.time() if current_close_z else time(20, 0),
-                    step=timedelta(minutes=1),
-                )
-
-                st.markdown("**Liquidity**")
-                new_b = st.slider(
-                    "b (higher = deeper book)",
-                    20, 400, int(em["b"]), step=10,
-                )
-                if em["q_yes"] != 0 or em["q_no"] != 0:
-                    st.caption(
-                        "Changing b on a market with existing trades will shift "
-                        "the displayed mark price. Traders' shares don't change, "
-                        "but their mark-to-market values will."
-                    )
-
-                if st.form_submit_button("Save changes", type="primary"):
-                    close_at_val = ...  # sentinel: don't change
-                    valid = True
-                    if has_deadline:
-                        close_at_val = zurich_to_utc(datetime.combine(edit_date, edit_time))
-                        if close_at_val <= datetime.utcnow():
-                            st.error("That deadline is in the past.")
-                            valid = False
-                    else:
-                        close_at_val = None
-                    if valid:
-                        try:
-                            mkt.update_market(
-                                em["id"],
-                                question=new_question,
-                                description=new_desc,
-                                category=new_category,
-                                b=float(new_b),
-                                close_at=close_at_val,
-                            )
-                            refresh()
-                        except ValueError as exc:
-                            st.error(str(exc))
-
-    # ----- Settle ------------------------------------------------------------ #
+        _admin_edit()
     with sec_settle:
-        open_markets = cached_markets("open")
-        if not open_markets:
-            st.info("No open markets to settle.")
-        else:
-            labels = {}
-            for m in open_markets:
-                tag = "" if m["trading_open"] else "  — trading closed"
-                labels[f"{m['question']} (YES {m['prob_yes']*100:.0f}%){tag}"] = m["id"]
-            choice = st.selectbox("Market", list(labels.keys()))
-            st.caption("Settlement pays winning shares 100 each; losing shares expire at 0.")
-            c1, c2 = st.columns(2)
-            if c1.button("Settle YES", type="primary", width="stretch"):
-                mkt.resolve_market(labels[choice], "yes")
-                refresh()
-            if c2.button("Settle NO", width="stretch"):
-                mkt.resolve_market(labels[choice], "no")
-                refresh()
-
-    # ----- Delete ------------------------------------------------------------ #
+        _admin_settle()
     with sec_delete:
-        open_markets = cached_markets("open")
-        if not open_markets:
-            st.info("No open markets to delete.")
-        else:
-            del_labels = {}
-            for m in open_markets:
-                tag = "" if m["trading_open"] else "  — trading closed"
-                del_labels[f"{m['question']} (YES {m['prob_yes']*100:.0f}%){tag}"] = m["id"]
-            del_choice = st.selectbox("Market", list(del_labels.keys()), key="del_sel")
-            st.warning(
-                "Deleting a market **refunds every trader** their net cost and "
-                "removes the market completely — it will no longer appear anywhere. "
-                "This cannot be undone."
-            )
-            confirm_del = st.text_input("Type DELETE to confirm", key="del_confirm")
-            if st.button(
-                "Delete market", type="primary",
-                disabled=confirm_del != "DELETE",
-            ):
+        _admin_delete()
+    with sec_proposals:
+        _admin_proposals()
+    with sec_activity:
+        _admin_activity()
+    with sec_admins:
+        _admin_admins()
+    with sec_danger:
+        _admin_reset(user)
+
+
+@st.fragment
+def _admin_create() -> None:
+    with st.form("create_market"):
+        question = st.text_input("Market question", placeholder="Will Italy beat Spain?")
+        description = st.text_area(
+            "Settlement / resolution criteria",
+            placeholder="Result after 90 minutes + stoppage time. Extra time excluded.",
+        )
+        category = st.selectbox("Category", mkt.CATEGORIES)
+        init_prob = st.slider(
+            "Starting probability (YES %)",
+            1, 99, 50, step=1,
+            help="Opening odds — e.g. 70 means the market starts at YES 70% / NO 30%.",
+        )
+        b = st.slider(
+            "Liquidity b (higher = deeper book, less slippage)",
+            20, 400, 100, step=10,
+        )
+        set_deadline = st.checkbox("Set a trading deadline")
+        now_z = datetime.now(ZURICH)
+        dl1, dl2 = st.columns(2)
+        close_date = dl1.date_input(
+            "Close date (Zurich)", value=(now_z + timedelta(days=1)).date()
+        )
+        close_time = dl2.time_input(
+            "Close time (Zurich)", value=time(20, 0), step=timedelta(minutes=1)
+        )
+        st.caption(
+            "Trading stops at this Zurich (CET/CEST) date & time. "
+            "Leave unchecked for a market with no deadline."
+        )
+        if st.form_submit_button("List market", type="primary"):
+            close_at = None
+            valid = True
+            if set_deadline:
+                close_at = zurich_to_utc(datetime.combine(close_date, close_time))
+                if close_at <= datetime.utcnow():
+                    st.error("That deadline is in the past (Zurich time).")
+                    valid = False
+            if valid:
                 try:
-                    q = mkt.delete_market(del_labels[del_choice])
-                    st.success(f"Deleted: {q}. All traders have been refunded.")
-                    refresh()
+                    mkt.create_market(
+                        question, description, float(b),
+                        close_at=close_at, initial_prob=init_prob / 100,
+                        category=category,
+                    )
+                    st.cache_data.clear()
+                    st.rerun(scope="app")
                 except ValueError as exc:
                     st.error(str(exc))
 
-    # ----- Proposals --------------------------------------------------------- #
-    with sec_proposals:
-        pending = cached_proposals("pending")
-        if not pending:
-            st.info("No pending proposals.")
-        else:
-            for p in pending:
-                with st.container(border=True):
-                    st.markdown(
-                        f"<span class='tkr'>{p['question']}</span>"
-                        f"<div class='muted' style='font-size:.82rem'>"
-                        f"by {p['username']} · {fmt_zurich(p['created_at'])}</div>",
-                        unsafe_allow_html=True,
-                    )
-                    if p["description"]:
-                        st.markdown(f"<span class='muted'>{p['description']}</span>", unsafe_allow_html=True)
-                    c_approve, c_reject = st.columns(2)
-                    if c_approve.button("✅ Approve & create", key=f"approve_{p['id']}", type="primary", width="stretch"):
-                        data = mkt.approve_proposal(p["id"])
-                        mkt.create_market(data["question"], data["description"])
-                        refresh()
-                    if c_reject.button("❌ Reject", key=f"reject_{p['id']}", width="stretch"):
-                        mkt.reject_proposal(p["id"])
-                        refresh()
 
-        # Show recently handled proposals
-        handled = [p for p in cached_proposals() if p["status"] != "pending"]
-        if handled:
-            with st.expander(f"Handled ({len(handled)})"):
-                for p in handled[:20]:
-                    icon = "✅" if p["status"] == "approved" else "❌"
-                    st.markdown(
-                        f"{icon} **{p['question']}** — {p['username']}",
-                    )
+@st.fragment
+def _admin_edit() -> None:
+    open_markets = cached_markets("open")
+    if not open_markets:
+        st.info("No open markets to edit.")
+        return
 
-    # ----- Activity ---------------------------------------------------------- #
-    with sec_activity:
-        all_markets = (cached_markets("open") or []) + (cached_markets("resolved") or [])
-        if not all_markets:
-            st.info("No markets yet.")
-        else:
-            market_labels = {m["question"]: m["id"] for m in all_markets}
-            chosen = st.selectbox(
-                "Select market", list(market_labels.keys()), key="activity_market"
+    edit_labels = {m["question"]: m for m in open_markets}
+    chosen_q = st.selectbox("Market to edit", list(edit_labels.keys()), key="edit_sel")
+    em = edit_labels[chosen_q]
+
+    with st.form(f"edit_market_{em['id']}"):
+        new_question = st.text_input(
+            "Market question",
+            value=em["question"],
+        )
+        new_desc = st.text_area(
+            "Description / resolution criteria",
+            value=em["description"],
+        )
+        new_category = st.selectbox(
+            "Category",
+            mkt.CATEGORIES,
+            index=mkt.CATEGORIES.index(em.get("category", "Other")),
+        )
+
+        st.markdown("**Deadline**")
+        has_deadline = st.checkbox(
+            "Has a trading deadline",
+            value=em["close_at"] is not None,
+        )
+        now_z = datetime.now(ZURICH)
+        current_close_z = to_zurich(em["close_at"]) if em["close_at"] else None
+        edl1, edl2 = st.columns(2)
+        edit_date = edl1.date_input(
+            "Close date (Zurich)",
+            value=current_close_z.date() if current_close_z else (now_z + timedelta(days=1)).date(),
+        )
+        edit_time = edl2.time_input(
+            "Close time (Zurich)",
+            value=current_close_z.time() if current_close_z else time(20, 0),
+            step=timedelta(minutes=1),
+        )
+
+        st.markdown("**Liquidity**")
+        new_b = st.slider(
+            "b (higher = deeper book)",
+            20, 400, int(em["b"]), step=10,
+        )
+        if em["q_yes"] != 0 or em["q_no"] != 0:
+            st.caption(
+                "Changing b on a market with existing trades will shift "
+                "the displayed mark price. Traders' shares don't change, "
+                "but their mark-to-market values will."
             )
-            mid = market_labels[chosen]
 
-            trades = mkt.recent_trades(market_id=mid, limit=200)
-            if not trades:
-                st.caption("No trades on this market yet.")
+        if st.form_submit_button("Save changes", type="primary"):
+            close_at_val = ...  # sentinel: don't change
+            valid = True
+            if has_deadline:
+                close_at_val = zurich_to_utc(datetime.combine(edit_date, edit_time))
+                if close_at_val <= datetime.utcnow():
+                    st.error("That deadline is in the past.")
+                    valid = False
             else:
-                df = pd.DataFrame(trades)
-                # Summary
-                vol = df["cost"].abs().sum()
-                n_traders = df["user"].nunique()
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Trades", str(len(df)))
-                c2.metric("Volume", f"{vol:,.0f}")
-                c3.metric("Traders", str(n_traders))
-
-                # P&L breakdown
-                breakdown = mkt.market_pnl_breakdown(mid)
-                st.markdown("##### P&L by trader")
-                if breakdown["traders"]:
-                    pnl_df = pd.DataFrame(breakdown["traders"])
-                    pnl_df["Side"] = pnl_df["side"]
-                    pnl_df["Shares"] = pnl_df["shares"].round(0)
-                    pnl_df["Cost"] = pnl_df["cost"].round(1)
-                    pnl_df["Payout"] = pnl_df["payout"].round(1)
-                    pnl_df["P&L"] = pnl_df["pnl"].round(1)
-                    st.dataframe(
-                        pnl_df.rename(columns={"username": "Trader"})[
-                            ["Trader", "Side", "Shares", "Cost", "Payout", "P&L"]
-                        ],
-                        hide_index=True,
-                        width="stretch",
-                        column_config={
-                            "P&L": st.column_config.NumberColumn(format="%+.1f"),
-                        },
+                close_at_val = None
+            if valid:
+                try:
+                    mkt.update_market(
+                        em["id"],
+                        question=new_question,
+                        description=new_desc,
+                        category=new_category,
+                        b=float(new_b),
+                        close_at=close_at_val,
                     )
+                    st.cache_data.clear()
+                    st.rerun(scope="app")
+                except ValueError as exc:
+                    st.error(str(exc))
 
-                # Market maker line
-                maker_sign = "+" if breakdown["maker_pnl"] >= 0 else "−"
-                maker_cls = "pos" if breakdown["maker_pnl"] >= 0 else "neg"
-                status_note = "(realised)" if breakdown["status"] == "resolved" else "(mark-to-market)"
+
+@st.fragment
+def _admin_settle() -> None:
+    open_markets = cached_markets("open")
+    if not open_markets:
+        st.info("No open markets to settle.")
+        return
+
+    labels = {}
+    for m in open_markets:
+        tag = "" if m["trading_open"] else "  — trading closed"
+        labels[f"{m['question']} (YES {m['prob_yes']*100:.0f}%){tag}"] = m["id"]
+    choice = st.selectbox("Market", list(labels.keys()))
+    st.caption("Settlement pays winning shares 100 each; losing shares expire at 0.")
+    c1, c2 = st.columns(2)
+    if c1.button("Settle YES", type="primary", width="stretch"):
+        mkt.resolve_market(labels[choice], "yes")
+        st.cache_data.clear()
+        st.rerun(scope="app")
+    if c2.button("Settle NO", width="stretch"):
+        mkt.resolve_market(labels[choice], "no")
+        st.cache_data.clear()
+        st.rerun(scope="app")
+
+
+@st.fragment
+def _admin_delete() -> None:
+    open_markets = cached_markets("open")
+    if not open_markets:
+        st.info("No open markets to delete.")
+        return
+
+    del_labels = {}
+    for m in open_markets:
+        tag = "" if m["trading_open"] else "  — trading closed"
+        del_labels[f"{m['question']} (YES {m['prob_yes']*100:.0f}%){tag}"] = m["id"]
+    del_choice = st.selectbox("Market", list(del_labels.keys()), key="del_sel")
+    st.warning(
+        "Deleting a market **refunds every trader** their net cost and "
+        "removes the market completely — it will no longer appear anywhere. "
+        "This cannot be undone."
+    )
+    confirm_del = st.text_input("Type DELETE to confirm", key="del_confirm")
+    if st.button(
+        "Delete market", type="primary",
+        disabled=confirm_del != "DELETE",
+    ):
+        try:
+            q = mkt.delete_market(del_labels[del_choice])
+            st.success(f"Deleted: {q}. All traders have been refunded.")
+            st.cache_data.clear()
+            st.rerun(scope="app")
+        except ValueError as exc:
+            st.error(str(exc))
+
+
+@st.fragment
+def _admin_proposals() -> None:
+    pending = cached_proposals("pending")
+    if not pending:
+        st.info("No pending proposals.")
+    else:
+        for p in pending:
+            with st.container(border=True):
                 st.markdown(
-                    f"<div style='margin-top:.6rem;padding:.5rem .7rem;"
-                    f"background:#1f2937;border-radius:6px;display:flex;"
-                    f"justify-content:space-between;align-items:center'>"
-                    f"<span class='muted'>Market maker P&amp;L {status_note}</span>"
-                    f"<span class='{maker_cls}' style='font-size:1.05rem'>"
-                    f"{maker_sign}{abs(breakdown['maker_pnl']):,.1f}</span>"
-                    f"</div>"
-                    f"<div class='muted' style='font-size:.75rem;margin-top:.25rem'>"
-                    f"Max possible loss: {breakdown['max_loss']:,.0f} (b × ln2)</div>",
+                    f"<span class='tkr'>{p['question']}</span>"
+                    f"<div class='muted' style='font-size:.82rem'>"
+                    f"by {p['username']} · {fmt_zurich(p['created_at'])}</div>",
                     unsafe_allow_html=True,
                 )
+                if p["description"]:
+                    st.markdown(f"<span class='muted'>{p['description']}</span>", unsafe_allow_html=True)
+                c_approve, c_reject = st.columns(2)
+                if c_approve.button("✅ Approve & create", key=f"approve_{p['id']}", type="primary", width="stretch"):
+                    data = mkt.approve_proposal(p["id"])
+                    mkt.create_market(data["question"], data["description"])
+                    st.cache_data.clear()
+                    st.rerun(scope="app")
+                if c_reject.button("❌ Reject", key=f"reject_{p['id']}", width="stretch"):
+                    mkt.reject_proposal(p["id"])
+                    st.cache_data.clear()
+                    st.rerun(scope="app")
 
-                st.markdown("##### Trade tape")
-                # Full trade tape
-                df["Time"] = pd.to_datetime(df["time"]).dt.strftime("%d %b %H:%M")
-                df["Side"] = df["side"].str.upper()
-                df["Shares"] = df["shares"].round(0)
-                df["Stake"] = df["cost"].round(1)
-                df["Mark"] = (df["prob_after"] * 100).round(0).astype(int).astype(str) + "%"
-                st.dataframe(
-                    df.rename(columns={"user": "Trader", "action": "Action"})[
-                        ["Time", "Trader", "Action", "Side", "Shares", "Stake", "Mark"]
-                    ],
-                    hide_index=True,
-                    width="stretch",
-                    height=400,
+    # Show recently handled proposals
+    handled = [p for p in cached_proposals() if p["status"] != "pending"]
+    if handled:
+        with st.expander(f"Handled ({len(handled)})"):
+            for p in handled[:20]:
+                icon = "✅" if p["status"] == "approved" else "❌"
+                st.markdown(
+                    f"{icon} **{p['question']}** — {p['username']}",
                 )
 
-    # ----- Admins ------------------------------------------------------------ #
-    with sec_admins:
-        users = mkt.list_users()
-        st.markdown("##### Members")
-        df = pd.DataFrame(users)
-        df["Role"] = df["is_admin"].map({True: "admin", False: "trader"})
+
+@st.fragment
+def _admin_activity() -> None:
+    all_markets = (cached_markets("open") or []) + (cached_markets("resolved") or [])
+    if not all_markets:
+        st.info("No markets yet.")
+        return
+
+    market_labels = {m["question"]: m["id"] for m in all_markets}
+    chosen = st.selectbox(
+        "Select market", list(market_labels.keys()), key="activity_market"
+    )
+    mid = market_labels[chosen]
+
+    trades = mkt.recent_trades(market_id=mid, limit=200)
+    if not trades:
+        st.caption("No trades on this market yet.")
+        return
+
+    df = pd.DataFrame(trades)
+    # Summary
+    vol = df["cost"].abs().sum()
+    n_traders = df["user"].nunique()
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Trades", str(len(df)))
+    c2.metric("Volume", f"{vol:,.0f}")
+    c3.metric("Traders", str(n_traders))
+
+    # P&L breakdown
+    breakdown = mkt.market_pnl_breakdown(mid)
+    st.markdown("##### P&L by trader")
+    if breakdown["traders"]:
+        pnl_df = pd.DataFrame(breakdown["traders"])
+        pnl_df["Side"] = pnl_df["side"]
+        pnl_df["Shares"] = pnl_df["shares"].round(0)
+        pnl_df["Cost"] = pnl_df["cost"].round(1)
+        pnl_df["Payout"] = pnl_df["payout"].round(1)
+        pnl_df["P&L"] = pnl_df["pnl"].round(1)
         st.dataframe(
-            df.rename(columns={"username": "User"})[["User", "Role"]],
+            pnl_df.rename(columns={"username": "Trader"})[
+                ["Trader", "Side", "Shares", "Cost", "Payout", "P&L"]
+            ],
             hide_index=True,
             width="stretch",
+            column_config={
+                "P&L": st.column_config.NumberColumn(format="%+.1f"),
+            },
         )
 
-        traders = [u["username"] for u in users if not u["is_admin"]]
-        admins = [u["username"] for u in users if u["is_admin"]]
+    # Market maker line
+    maker_sign = "+" if breakdown["maker_pnl"] >= 0 else "−"
+    maker_cls = "pos" if breakdown["maker_pnl"] >= 0 else "neg"
+    status_note = "(realised)" if breakdown["status"] == "resolved" else "(mark-to-market)"
+    st.markdown(
+        f"<div style='margin-top:.6rem;padding:.5rem .7rem;"
+        f"background:#1f2937;border-radius:6px;display:flex;"
+        f"justify-content:space-between;align-items:center'>"
+        f"<span class='muted'>Market maker P&amp;L {status_note}</span>"
+        f"<span class='{maker_cls}' style='font-size:1.05rem'>"
+        f"{maker_sign}{abs(breakdown['maker_pnl']):,.1f}</span>"
+        f"</div>"
+        f"<div class='muted' style='font-size:.75rem;margin-top:.25rem'>"
+        f"Max possible loss: {breakdown['max_loss']:,.0f} (b × ln2)</div>",
+        unsafe_allow_html=True,
+    )
 
-        col_promote, col_demote = st.columns(2)
-        with col_promote:
-            st.markdown("**Promote to admin**")
-            if traders:
-                who = st.selectbox("Trader", traders, key="promote_sel")
-                if st.button("Grant admin", width="stretch"):
-                    mkt.set_admin(who, True)
-                    refresh()
-            else:
-                st.caption("No traders to promote.")
-        with col_demote:
-            st.markdown("**Revoke admin**")
-            demotable = [a for a in admins]
-            if len(admins) > 1 and demotable:
-                who = st.selectbox("Admin", demotable, key="demote_sel")
-                if st.button("Revoke admin", width="stretch"):
-                    try:
-                        mkt.set_admin(who, False)
-                        refresh()
-                    except ValueError as exc:
-                        st.error(str(exc))
-            else:
-                st.caption("Need at least one admin at all times.")
+    st.markdown("##### Trade tape")
+    # Full trade tape
+    df["Time"] = pd.to_datetime(df["time"]).dt.strftime("%d %b %H:%M")
+    df["Side"] = df["side"].str.upper()
+    df["Shares"] = df["shares"].round(0)
+    df["Stake"] = df["cost"].round(1)
+    df["Mark"] = (df["prob_after"] * 100).round(0).astype(int).astype(str) + "%"
+    st.dataframe(
+        df.rename(columns={"user": "Trader", "action": "Action"})[
+            ["Time", "Trader", "Action", "Side", "Shares", "Stake", "Mark"]
+        ],
+        hide_index=True,
+        width="stretch",
+        height=400,
+    )
 
-    # ----- Danger zone ------------------------------------------------------- #
-    with sec_danger:
-        st.warning(
-            "Resets are irreversible. They wipe live markets, positions and trade history."
-        )
-        mode = st.radio(
-            "Reset scope",
-            [
-                "Soft reset — wipe markets & trades, reset everyone to 1,000",
-                "Hard reset — also delete all accounts except admins",
-                "Nuke — delete everything except me",
-            ],
-        )
-        confirm = st.text_input("Type RESET to confirm")
-        if st.button("Execute reset", type="primary", disabled=confirm != "RESET"):
-            if mode.startswith("Soft"):
-                mkt.reset_game(delete_accounts=False)
-            elif mode.startswith("Hard"):
-                mkt.reset_game(delete_accounts=True, keep_admins=True)
-            else:
-                mkt.reset_game(delete_accounts=True, keep_user_id=user["id"])
-            st.success("Market reset.")
-            refresh()
+
+@st.fragment
+def _admin_admins() -> None:
+    users = mkt.list_users()
+    st.markdown("##### Members")
+    df = pd.DataFrame(users)
+    df["Role"] = df["is_admin"].map({True: "admin", False: "trader"})
+    st.dataframe(
+        df.rename(columns={"username": "User"})[["User", "Role"]],
+        hide_index=True,
+        width="stretch",
+    )
+
+    traders = [u["username"] for u in users if not u["is_admin"]]
+    admins = [u["username"] for u in users if u["is_admin"]]
+
+    col_promote, col_demote = st.columns(2)
+    with col_promote:
+        st.markdown("**Promote to admin**")
+        if traders:
+            who = st.selectbox("Trader", traders, key="promote_sel")
+            if st.button("Grant admin", width="stretch"):
+                mkt.set_admin(who, True)
+                st.cache_data.clear()
+                st.rerun(scope="app")
+        else:
+            st.caption("No traders to promote.")
+    with col_demote:
+        st.markdown("**Revoke admin**")
+        demotable = [a for a in admins]
+        if len(admins) > 1 and demotable:
+            who = st.selectbox("Admin", demotable, key="demote_sel")
+            if st.button("Revoke admin", width="stretch"):
+                try:
+                    mkt.set_admin(who, False)
+                    st.cache_data.clear()
+                    st.rerun(scope="app")
+                except ValueError as exc:
+                    st.error(str(exc))
+        else:
+            st.caption("Need at least one admin at all times.")
+
+
+@st.fragment
+def _admin_reset(user: dict) -> None:
+    st.warning(
+        "Resets are irreversible. They wipe live markets, positions and trade history."
+    )
+    mode = st.radio(
+        "Reset scope",
+        [
+            "Soft reset — wipe markets & trades, reset everyone to 1,000",
+            "Hard reset — also delete all accounts except admins",
+            "Nuke — delete everything except me",
+        ],
+    )
+    confirm = st.text_input("Type RESET to confirm")
+    if st.button("Execute reset", type="primary", disabled=confirm != "RESET"):
+        if mode.startswith("Soft"):
+            mkt.reset_game(delete_accounts=False)
+        elif mode.startswith("Hard"):
+            mkt.reset_game(delete_accounts=True, keep_admins=True)
+        else:
+            mkt.reset_game(delete_accounts=True, keep_user_id=user["id"])
+        st.cache_data.clear()
+        st.rerun(scope="app")
 
 
 main()
